@@ -2,7 +2,7 @@
 all: js/app.js
 
 js/app.js: js/app.ts
-	tsc $^
+	tsc
 
 .PHONY: clean
 clean:
