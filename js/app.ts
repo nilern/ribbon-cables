@@ -89,7 +89,11 @@ class MappedSignal<T, U> implements Signal<U> {
     
     ref(): U {
         if (this.subscribers.size === 0) {
-            this.v = this.f(this.dependency.ref()); // OPTIMIZE: Could this call could be cached?
+            // If `this` has no subscribers it does not watch deps either so `this.v` could be stale:
+            this.v = this.f(this.dependency.ref());
+            // OPTIMIZE: This combined with dep `ref()`:s in ctor makes signal graph construction
+            // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
+            // would result from eagerly subscribing in ctor...
         }
         
         return this.v;
