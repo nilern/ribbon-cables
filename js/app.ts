@@ -70,7 +70,7 @@ class SourceSignal<T> implements Signal<T>, Reset<T> {
 
 class MappedSignal<T, U> implements Signal<U> {
     private readonly subscribers = new Set<Subscriber<U>>();
-    private v: U | undefined = undefined;
+    private v: U;
     private readonly depSubscriber: Subscriber<T>;
     
     constructor(
@@ -78,8 +78,9 @@ class MappedSignal<T, U> implements Signal<U> {
         private readonly f: (depVal: T) => U,
         private readonly dependency: Signal<T>
     ) {
+        this.v = f(dependency.ref());
         this.depSubscriber = (_: T, newDepVal: T) => {
-            const oldVal = this.v as U; // TODO: Ensure safety
+            const oldVal = this.v;
             const newVal = this.f(newDepVal);
             this.v = newVal;
             this.notify(oldVal, newVal);
@@ -91,7 +92,7 @@ class MappedSignal<T, U> implements Signal<U> {
             this.v = this.f(this.dependency.ref()); // OPTIMIZE: Could this call could be cached?
         }
         
-        return this.v as U; // TODO: Ensure safety
+        return this.v;
     }
     
     subscribe(subscriber: Subscriber<U>) {
