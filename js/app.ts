@@ -119,7 +119,7 @@ class MappedSignal<T, U> implements Signal<U> {
         }
     }
     
-    notify(v: U, u: U) {
+    notify(v: U, u: U) { // TODO: DRY wrt. `SourceSignal::notify`
         if (!this.equals(v, u)) {
             for (const subscriber of this.subscribers) {
                 subscriber(v, u);
