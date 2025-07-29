@@ -138,10 +138,36 @@ class MappedSignal<U, T extends Signal<any>[]> implements Signal<U> {
     }
 }
 
+// Type safe wrappers for `MappedSignal` creation:
+
+// TODO: Make into methods of `Signal`:
+
+function map<T, U>(equals: (x: U, y: U) => boolean, f: (x: T) => U, s: Signal<T>): Signal<U> {
+    function g(...xs: any[]): U {
+        const txs = xs as [T]; // SAFETY: `xs` are `[s].map((x) => x.ref())`
+        return f(txs[0]);
+    }
+    
+    return new MappedSignal(equals, g, s);
+}
+
+function map2<T, U, V>(equals: (x: V, y: V) => boolean, f: (x: T, y: U) => V,
+    s1: Signal<T>, s2: Signal<U>
+): Signal<V> {
+    function g(...xs: any[]): V {
+        const txs = xs as [T, U]; // SAFETY: `xs` are `[s1, s2].map((x) => x.ref())`
+        return f(txs[0], txs[1]);
+    }
+    
+    return new MappedSignal(equals, g, s1, s2);
+}
+
+// App
+// ===
+
 (function (window) {
 	'use strict';
 
 	// Your starting point. Enjoy the ride!
-
 })(window);
 
