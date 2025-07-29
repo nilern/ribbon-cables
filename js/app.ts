@@ -68,29 +68,35 @@ class SourceSignal<T> implements Signal<T>, Reset<T> {
     }
 }
 
-class MappedSignal<T, U> implements Signal<U> {
+class MappedSignal<U, T extends Signal<any>[]> implements Signal<U> {
     private readonly subscribers = new Set<Subscriber<U>>();
+    private readonly deps: T;
+    private readonly depSubscribers: Subscriber<any>[] = [];
     private v: U;
-    private readonly depSubscriber: Subscriber<T>;
     
     constructor(
         private readonly equals: (x: U, y: U) => boolean,
-        private readonly f: (depVal: T) => U,
-        private readonly dependency: Signal<T>
+        private readonly f: (...depVals: any[]) => U,
+        ...deps: T
     ) {
-        this.v = f(dependency.ref());
-        this.depSubscriber = (_: T, newDepVal: T) => {
-            const oldVal = this.v;
-            const newVal = this.f(newDepVal);
-            this.v = newVal;
-            this.notify(oldVal, newVal);
-        };
+        this.deps = deps;
+        
+        for (const dep of deps) {
+            this.depSubscribers.push((_: any, _1: any) => {
+                const oldVal = this.v;
+                const newVal = this.f.apply(undefined, this.deps.map((dep) => dep.ref()));
+                this.v = newVal;
+                this.notify(oldVal, newVal);
+            })
+        }
+    
+        this.v = f.apply(undefined, deps.map((dep) => dep.ref()));
     }
     
     ref(): U {
         if (this.subscribers.size === 0) {
             // If `this` has no subscribers it does not watch deps either so `this.v` could be stale:
-            this.v = this.f(this.dependency.ref());
+            this.v = this.f.apply(undefined, this.deps.map((dep) => dep.ref()));
             // OPTIMIZE: This combined with dep `ref()`:s in ctor makes signal graph construction
             // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
             // would result from eagerly subscribing in ctor...
@@ -103,7 +109,9 @@ class MappedSignal<T, U> implements Signal<U> {
         if (this.subscribers.size === 0) {
             // To avoid space leaks and 'unused' updates to `this` only start watching dependencies
             // when `this` gets its first watcher:
-            this.dependency.subscribe(this.depSubscriber);
+            for (let i = 0; i < this.deps.length; ++i) {
+                this.deps[i].subscribe(this.depSubscribers[i]);
+            }
         }
         
         this.subscribers.add(subscriber);
@@ -115,7 +123,9 @@ class MappedSignal<T, U> implements Signal<U> {
         if (this.subscribers.size === 0) {
             // Watcher count just became zero, but watchees still have pointers to `this` (via
             // `depSubscriber`). Remove those to avoid space leaks and 'unused' updates to `this`:
-            this.dependency.unsubscribe(this.depSubscriber);
+            for (let i = 0; i < this.deps.length; ++i) {
+                this.deps[i].unsubscribe(this.depSubscribers[i]);
+            }
         }
     }
     
