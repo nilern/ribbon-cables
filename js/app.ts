@@ -143,10 +143,7 @@ class MappedSignal<U, T extends Signal<any>[]> implements Signal<U> {
 // TODO: Make into methods of `Signal`:
 
 function map<R, T>(equals: (x: R, y: R) => boolean, f: (x: T) => R, s: Signal<T>): Signal<R> {
-    function g(...xs: any[]): R {
-        const txs = xs as [T]; // SAFETY: `xs` are `[s].map((x) => x.ref())`
-        return f(txs[0]);
-    }
+    const g = f as (...xs: any[]) => R; // SAFETY: `xs` are `[s].map((x) => x.ref())`
     
     return new MappedSignal(equals, g, s);
 }
@@ -154,10 +151,7 @@ function map<R, T>(equals: (x: R, y: R) => boolean, f: (x: T) => R, s: Signal<T>
 function map2<R, T, U>(equals: (x: R, y: R) => boolean, f: (x: T, y: U) => R,
     s1: Signal<T>, s2: Signal<U>
 ): Signal<R> {
-    function g(...xs: any[]): R {
-        const txs = xs as [T, U]; // SAFETY: `xs` are `[s1, s2].map((x) => x.ref())`
-        return f(txs[0], txs[1]);
-    }
+    const g = f as (...xs: any[]) => R; // SAFETY: `xs` are `[s1, s2].map((x) => x.ref())`
     
     return new MappedSignal(equals, g, s1, s2);
 }
