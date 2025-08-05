@@ -48,7 +48,7 @@ interface IndexedObservable<T> {
 
 interface Signal<T> extends Deref<T>, Observable<T> {}
 
-interface Vecnal<T> extends IndexedMut<T>, Lengthy, IndexedObservable<T> {}
+interface Vecnal<T> extends Indexed<T>, Lengthy, IndexedObservable<T> {}
 
 class ConstSignal<T> implements Signal<T> {
     constructor(
@@ -62,6 +62,28 @@ class ConstSignal<T> implements Signal<T> {
     unsubscribe(_: Subscriber<T>) {}
     
     notify(v: T, u: T) {}
+}
+
+class ConstVecnal<T> implements Vecnal<T> {
+    readonly length: number;
+
+    constructor(
+        private readonly vs: T[] // TODO: Immutable vector
+    ) {
+        this.length = vs.length;
+    }
+    
+    at(i: number): T { return this.vs[i]; }
+    
+    iSubscribe(_: IndexedSubscriber<T>) {}
+    
+    iUnsubscribe(_: IndexedSubscriber<T>) {}
+    
+    notifyInsert(_: number, _1: T): void {}
+    
+    notifyRemove(_: number): void {}
+    
+    notifySubstitute(_: number, _1: T): void {}
 }
 
 class SourceSignal<T> implements Signal<T>, Reset<T> {
