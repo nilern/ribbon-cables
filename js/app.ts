@@ -14,8 +14,14 @@ interface IndexedMut<T> extends Indexed<T> {
     setAt: (i: number, v: T) => T;
 }
 
-interface Lengthy {
-    length: number
+interface Spliceable<T> extends IndexedMut<T> {
+    insert: (i: number, v: T) => T;
+    
+    remove: (i: number) => T;
+}
+
+interface Sized {
+    size: () => number;
 }
 
 type Subscriber<T> = (v: T, u: T) => void;
@@ -43,12 +49,12 @@ interface IndexedObservable<T> {
     notifyInsert: (i: number, v: T) => void;
     notifyRemove: (i: number) => void;
     // TODO: notifyMove: (i: number, j: number) => void;
-    notifySubstitute: (i: number, v: T) => void;
+    notifySubstitute: (i: number, v: T, u: T) => void;
 }
 
 interface Signal<T> extends Deref<T>, Observable<T> {}
 
-interface Vecnal<T> extends Indexed<T>, Lengthy, IndexedObservable<T> {}
+interface Vecnal<T> extends Indexed<T>, Sized, IndexedObservable<T> {}
 
 class ConstSignal<T> implements Signal<T> {
     constructor(
@@ -65,13 +71,15 @@ class ConstSignal<T> implements Signal<T> {
 }
 
 class ConstVecnal<T> implements Vecnal<T> {
-    readonly length: number;
-
+    private readonly vs: T[]; // TODO: Immutable vector
+    
     constructor(
-        private readonly vs: T[] // TODO: Immutable vector
+        vs: T[] // TODO: Immutable vector
     ) {
-        this.length = vs.length;
+        this.vs = [...vs];
     }
+    
+    size(): number { return this.vs.length; }
     
     at(i: number): T { return this.vs[i]; }
     
@@ -79,11 +87,11 @@ class ConstVecnal<T> implements Vecnal<T> {
     
     iUnsubscribe(_: IndexedSubscriber<T>) {}
     
-    notifyInsert(_: number, _1: T): void {}
+    notifyInsert(_: number, _1: T) {}
     
-    notifyRemove(_: number): void {}
+    notifyRemove(_: number) {}
     
-    notifySubstitute(_: number, _1: T): void {}
+    notifySubstitute(_: number, _1: T) {}
 }
 
 class SourceSignal<T> implements Signal<T>, Reset<T> {
@@ -118,6 +126,76 @@ class SourceSignal<T> implements Signal<T>, Reset<T> {
             for (const subscriber of this.subscribers) {
                 subscriber(v, u);
             }
+        }
+    }
+}
+
+class SourceVecnal<T> implements Vecnal<T>, Spliceable<T> {
+    private readonly vs: T[]; // OPTIMIZE: RRB vector
+    private readonly subscribers = new Set<IndexedSubscriber<T>>();
+    
+    constructor(
+        private readonly equals: (x: T, y: T) => boolean,
+        vs: T[] // TODO: Immutable vector
+    ) {
+        this.vs = [...vs];
+    }
+    
+    size(): number { return this.vs.length; }
+    
+    at(i: number): T { return this.vs[i]; }
+    
+    setAt(i: number, v: T): T {
+        const oldV = this.vs[i];
+        this.vs[i] = v;
+        
+        this.notifySubstitute(i, oldV, v);
+        
+        return v;
+    }
+    
+    insert(i: number, v: T): T {
+        this.vs.splice(i, 0, v); // OPTIMIZE
+        
+        this.notifyInsert(i, v);
+    
+        return v;
+    }
+    
+    remove(i: number): T {
+        const v = this.vs[i];
+        this.vs.splice(i, 1); // OPTIMIZE
+        
+        this.notifyRemove(i);
+    
+        return v;
+    }
+    
+    iSubscribe(subscriber: IndexedSubscriber<T>) {
+        this.subscribers.add(subscriber);
+    }
+    
+    iUnsubscribe(subscriber: IndexedSubscriber<T>) {
+        this.subscribers.delete(subscriber);
+    }
+    
+    notifySubstitute(i: number, v: T, u: T) {
+        if (!this.equals(v, u)) {
+            for (const subscriber of this.subscribers) {
+                subscriber.onSubstitute(i, u);
+            }
+        }
+    }
+    
+    notifyInsert(i: number, v: T) {
+        for (const subscriber of this.subscribers) {
+            subscriber.onInsert(i, v);
+        }
+    }
+    
+    notifyRemove(i: number) {
+        for (const subscriber of this.subscribers) {
+            subscriber.onRemove(i);
         }
     }
 }
