@@ -6,6 +6,18 @@ interface Reset<T> {
     reset: (v: T) => T
 }
 
+interface Indexed<T> {
+    at: (i: number) => T;
+}
+
+interface IndexedMut<T> extends Indexed<T> {
+    setAt: (i: number, v: T) => T;
+}
+
+interface Lengthy {
+    length: number
+}
+
 type Subscriber<T> = (v: T, u: T) => void;
 
 interface Observable<T> {
@@ -16,7 +28,27 @@ interface Observable<T> {
     notify: (v: T, u: T) => void;
 }
 
+interface IndexedSubscriber<T> {
+    onInsert: (i: number, v: T) => void;
+    onRemove: (i: number) => void;
+    // TODO: onMove: (i: number, j: number) => void;
+    onSubstitute: (i: number, v: T) => void;
+}
+
+interface IndexedObservable<T> {
+    iSubscribe: (subscriber: IndexedSubscriber<T>) => void;
+    
+    iUnsubscribe: (subscriber: IndexedSubscriber<T>) => void;
+    
+    notifyInsert: (i: number, v: T) => void;
+    notifyRemove: (i: number) => void;
+    // TODO: notifyMove: (i: number, j: number) => void;
+    notifySubstitute: (i: number, v: T) => void;
+}
+
 interface Signal<T> extends Deref<T>, Observable<T> {}
+
+interface Vecnal<T> extends IndexedMut<T>, Lengthy, IndexedObservable<T> {}
 
 class ConstSignal<T> implements Signal<T> {
     constructor(
