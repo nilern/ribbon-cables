@@ -288,6 +288,115 @@ function map2<R, T, U>(equals: (x: R, y: R) => boolean, f: (x: T, y: U) => R,
     return new MappedSignal(equals, g, s1, s2);
 }
 
+class MappedVecnal<U, T> implements Vecnal<U>, IndexedSubscriber<T> {
+    private readonly vs: U[]; // OPTIMIZE: RRB vector
+    private readonly subscribers = new Set<IndexedSubscriber<U>>();
+
+    constructor(
+        private readonly equals: (x: U, y: U) => boolean,
+        private readonly f: (v: T) => U,
+        private readonly input: Vecnal<T>
+    ) {
+        this.vs = [];
+        const len = input.size();
+        for (let i = 0; i < len; ++i) {
+            this.vs.push(f(input.at(i)));
+        }
+    }
+    
+    size(): number {
+        if (this.subscribers.size === 0) {
+            // If `this` has no subscribers it does not watch deps either so `this.vs` could be stale:
+            const oldLen = this.vs.length;
+            const newLen = this.input.size();
+            if (oldLen < newLen) {
+                for (let i = oldLen; i < newLen; ++i) {
+                    this.vs.push(this.f(this.input.at(i)));
+                }
+            } else if (oldLen > newLen) {
+                this.vs.splice(newLen);
+            }
+            // OPTIMIZE: This combined with dep `size()` in ctor makes signal graph construction
+            // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
+            // would result from eagerly subscribing in ctor...
+        }
+        
+        return this.vs.length;
+    }
+    
+    at(i: number): U {
+        if (this.subscribers.size === 0) {
+            // If `this` has no subscribers it does not watch deps either so `this.vs` could be stale:
+            this.vs[i] = this.f(this.input.at(i));
+            // OPTIMIZE: This combined with dep `at()`:s in ctor makes signal graph construction
+            // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
+            // would result from eagerly subscribing in ctor...
+        }
+        
+        return this.vs[i];
+    }
+    
+    iSubscribe(subscriber: IndexedSubscriber<U>) {
+        if (this.subscribers.size === 0) {
+            // To avoid space leaks and 'unused' updates to `this` only start watching dependencies
+            // when `this` gets its first watcher:
+            this.input.iSubscribe(this);
+        }
+        
+        this.subscribers.add(subscriber);
+    }
+    
+    iUnsubscribe(subscriber: IndexedSubscriber<U>) {
+        this.subscribers.delete(subscriber);
+        
+        if (this.subscribers.size === 0) {
+            // Watcher count just became zero, but watchees still have pointers to `this` (via
+            // `depSubscriber`). Remove those to avoid space leaks and 'unused' updates to `this`:
+            this.input.iUnsubscribe(this);
+        }
+    }
+    
+    onInsert(i: number, v: T) {
+        const u = this.f(v);
+        this.vs.splice(i, 0, u);
+        
+        this.notifyInsert(i, u);
+    }
+    
+    onRemove(i: number) {
+        this.vs.splice(i, 1);
+        
+        this.notifyRemove(i);
+    }
+    
+    onSubstitute(i: number, v: T) {
+        const oldU = this.vs[i];
+        const u = this.f(v);
+        
+        this.notifySubstitute(i, oldU, u);
+    }
+    
+    notifySubstitute(i: number, v: U, u: U) { // TODO: DRY (wrt. e.g. `SourceVecnal`)
+        if (!this.equals(v, u)) {
+            for (const subscriber of this.subscribers) {
+                subscriber.onSubstitute(i, u);
+            }
+        }
+    }
+    
+    notifyInsert(i: number, v: U) { // TODO: DRY (wrt. e.g. `SourceVecnal`)
+        for (const subscriber of this.subscribers) {
+            subscriber.onInsert(i, v);
+        }
+    }
+    
+    notifyRemove(i: number) { // TODO: DRY (wrt. e.g. `SourceVecnal`)
+        for (const subscriber of this.subscribers) {
+            subscriber.onRemove(i);
+        }
+    }
+}
+
 // App
 // ===
 
