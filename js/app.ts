@@ -397,6 +397,214 @@ class MappedVecnal<U, T> implements Vecnal<U>, IndexedSubscriber<T> {
     }
 }
 
+class FilteredVecnal<T> implements Vecnal<T>, IndexedSubscriber<T> {
+    // C style non-index should make `indexMapping` an array of 32-bit ints at runtime:
+    private static readonly NO_INDEX = -1;
+
+    private readonly vs: T[]; // OPTIMIZE: RRB vector
+    private readonly indexMapping: number[];
+    private readonly subscribers = new Set<IndexedSubscriber<T>>();
+
+    constructor(
+        private readonly f: (v: T) => boolean,
+        private readonly input: Vecnal<T>
+    ) {
+        this.vs = [];
+        this.indexMapping = [];
+        const len = input.size();
+        for (let i = 0; i < len; ++i) {
+            const v = input.at(i);
+            if (f(v)) {
+                this.vs.push(v);
+                this.indexMapping[i] = this.vs.length - 1;
+            } else {
+                this.indexMapping[i] = FilteredVecnal.NO_INDEX;
+            }
+        }
+    }
+    
+    size(): number {
+        if (this.subscribers.size === 0) {
+            // If `this` has no subscribers it does not watch deps either so `this.vs` could be stale:
+            this.vs.splice(0);
+            this.indexMapping.splice(0);
+            const len = this.input.size();
+            for (let i = 0; i < len; ++i) {
+                const v = this.input.at(i);
+                if (this.f(v)) {
+                    this.vs.push(v);
+                    this.indexMapping[i] = this.vs.length - 1;
+                } else {
+                    this.indexMapping[i] = FilteredVecnal.NO_INDEX;
+                }
+            }
+            // OPTIMIZE: This combined with dep `size()` in ctor makes signal graph construction
+            // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
+            // would result from eagerly subscribing in ctor...
+        }
+        
+        return this.vs.length;
+    }
+    
+    at(i: number): T {
+        if (this.subscribers.size === 0) {
+            // If `this` has no subscribers it does not watch deps either so `this.vs` could be stale:
+            this.vs.splice(0);
+            this.indexMapping.splice(0);
+            const len = this.input.size();
+            for (let j = 0; j < len; ++j) {
+                const v = this.input.at(j);
+                if (this.f(v)) {
+                    this.vs.push(v);
+                    this.indexMapping[j] = this.vs.length - 1;
+                    if (i < this.vs.length) {
+                        break; // They only asked for `this.vs[i]`, can skip the following elements
+                    }
+                } else {
+                    this.indexMapping[j] = FilteredVecnal.NO_INDEX;
+                }
+            }
+            // OPTIMIZE: This combined with dep `at()`:s in ctor makes signal graph construction
+            // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
+            // would result from eagerly subscribing in ctor...
+        }
+        
+        return this.vs[i];
+    }
+    
+    iSubscribe(subscriber: IndexedSubscriber<T>) { // TODO: DRY (wrt. e.g. `MappedVecnal`)
+        if (this.subscribers.size === 0) {
+            // To avoid space leaks and 'unused' updates to `this` only start watching dependencies
+            // when `this` gets its first watcher:
+            this.input.iSubscribe(this);
+        }
+        
+        this.subscribers.add(subscriber);
+    }
+    
+    iUnsubscribe(subscriber: IndexedSubscriber<T>) { // TODO: DRY (wrt. e.g. `MappedVecnal`)
+        this.subscribers.delete(subscriber);
+        
+        if (this.subscribers.size === 0) {
+            // Watcher count just became zero, but watchees still have pointers to `this` (via
+            // `depSubscriber`). Remove those to avoid space leaks and 'unused' updates to `this`:
+            this.input.iUnsubscribe(this);
+        }
+    }
+    
+    private insert(i: number, v: T) {
+        const j = i > 0 ? this.indexMapping[i - 1] + 1 : 0;
+        
+        // Insert to output:
+        this.vs.splice(j, 0, v);
+        
+        // Update index mapping:
+        this.indexMapping.push(FilteredVecnal.NO_INDEX);
+        const newLen = this.indexMapping.length;
+        let newIndex = j;
+        for (let k = i; k < newLen; ++k) {
+            const tmp = this.indexMapping[k];
+            this.indexMapping[k] = newIndex;
+            newIndex = tmp >= 0 ? tmp + 1 : tmp;
+        }
+        
+        this.notifyInsert(j, v);
+    }
+    
+    private remove(i: number) {
+        const j = this.indexMapping[i];
+        
+        // Remove from output:
+        this.vs.splice(j, 1);
+        
+        // Update index mapping:
+        const newLen = this.input.size() - 1;
+        for (let k = i; k < newLen; ++k) {
+            const oldIndexOfNext = this.indexMapping[k + 1];
+            this.indexMapping[k] = oldIndexOfNext >= 0 ? oldIndexOfNext - 1 : oldIndexOfNext;
+        }
+        this.indexMapping.pop();
+        
+        this.notifyRemove(j);
+    }
+    
+    private substitute(i: number, v: T) {
+        let j = this.indexMapping[i];
+        
+        const oldV = this.vs[j];
+        this.vs[j] = v;
+        
+        this.notifySubstitute(j, oldV, v);
+    }
+    
+    onInsert(i: number, v: T) {
+        if (this.f(v)) {
+            this.insert(i, v);
+        } else {
+            // Output does not change but still need to update index mapping:
+            this.indexMapping.push(FilteredVecnal.NO_INDEX);
+            const newLen = this.indexMapping.length;
+            let newIndex = FilteredVecnal.NO_INDEX;
+            for (let k = i; k < newLen; ++k) {
+                const tmp = this.indexMapping[k];
+                this.indexMapping[k] = newIndex;
+                newIndex = tmp;
+            }
+        }
+    }
+    
+    onRemove(i: number) {
+        const j = this.indexMapping[i];
+        
+        if (j >= 0) {
+            this.remove(i);
+        } else {
+            // Output does not change but still need to update index mapping:
+            const newLen = this.input.size() - 1;
+            for (let k = i; k < newLen; ++k) {
+                const oldIndexOfNext = this.indexMapping[k + 1];
+                this.indexMapping[k] = oldIndexOfNext;
+            }
+            this.indexMapping.pop();
+        }
+    }
+    
+    onSubstitute(i: number, v: T) {
+        let j = this.indexMapping[i];
+        
+        if (j >= 0) { // Old value was not filtered out
+            if (this.f(v)) { // New value not filtered out either
+                this.substitute(i, v);
+            } else { // New value is filtered out
+                this.remove(i);
+            }
+        } else { // Old value was filtered out
+            if (this.f(v)) { // New value is not filtered out
+                this.insert(i, v);
+            } // else still filtered out => no change
+        }
+    }
+    
+    notifySubstitute(i: number, v: T, u: T) {
+        // No `this.equals` check; presumably `this.input` already took care of that. 
+        for (const subscriber of this.subscribers) {
+            subscriber.onSubstitute(i, u);
+        }
+    }
+    
+    notifyInsert(i: number, v: T) { // TODO: DRY (wrt. e.g. `SourceVecnal`)
+        for (const subscriber of this.subscribers) {
+            subscriber.onInsert(i, v);
+        }
+    }
+    
+    notifyRemove(i: number) { // TODO: DRY (wrt. e.g. `SourceVecnal`)
+        for (const subscriber of this.subscribers) {
+            subscriber.onRemove(i);
+        }
+    }
+}
+
 // App
 // ===
 
