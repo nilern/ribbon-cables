@@ -20,6 +20,10 @@ interface Spliceable<T> extends IndexedMut<T> {
     remove: (i: number) => T;
 }
 
+interface Reducible<T> {
+    reduce: <U>(f: (acc: U, v: T) => U, acc: U) => U;
+}
+
 interface Sized {
     size: () => number;
 }
@@ -54,7 +58,7 @@ interface IndexedObservable<T> {
 
 interface Signal<T> extends Deref<T>, Observable<T> {}
 
-interface Vecnal<T> extends Indexed<T>, Sized, IndexedObservable<T> {}
+interface Vecnal<T> extends Indexed<T>, Sized, Reducible<T>, IndexedObservable<T> {}
 
 class ConstSignal<T> implements Signal<T> {
     constructor(
@@ -82,6 +86,8 @@ class ConstVecnal<T> implements Vecnal<T> {
     size(): number { return this.vs.length; }
     
     at(i: number): T { return this.vs[i]; }
+    
+    reduce<U>(f: (acc: U, v: T) => U, acc: U): U { return this.vs.reduce(f, acc); }
     
     iSubscribe(_: IndexedSubscriber<T>) {}
     
@@ -144,6 +150,8 @@ class SourceVecnal<T> implements Vecnal<T>, Spliceable<T> {
     size(): number { return this.vs.length; }
     
     at(i: number): T { return this.vs[i]; }
+    
+    reduce<U>(f: (acc: U, v: T) => U, acc: U): U { return this.vs.reduce(f, acc); }
     
     setAt(i: number, v: T): T {
         const oldV = this.vs[i];
@@ -336,6 +344,21 @@ class MappedVecnal<U, T> implements Vecnal<U>, IndexedSubscriber<T> {
         return this.vs[i];
     }
     
+    reduce<V>(f: (acc: V, v: U) => V, acc: V): V {
+        if (this.subscribers.size === 0) {
+            // If `this` has no subscribers it does not watch deps either so `this.vs` could be stale:
+            this.input.reduce((i, v) => {
+                this.vs[i] = this.f(v);
+                return i + 1;
+            }, 0);
+            // OPTIMIZE: This combined with dep `at()`:s in ctor makes signal graph construction
+            // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
+            // would result from eagerly subscribing in ctor...
+        }
+        
+        return this.vs.reduce(f, acc);
+    }
+    
     iSubscribe(subscriber: IndexedSubscriber<U>) {
         if (this.subscribers.size === 0) {
             // To avoid space leaks and 'unused' updates to `this` only start watching dependencies
@@ -444,6 +467,29 @@ class FilteredVecnal<T> implements Vecnal<T>, IndexedSubscriber<T> {
         }
         
         return this.vs.length;
+    }
+    
+    reduce<U>(f: (acc: U, v: T) => U, acc: U): U {
+        if (this.subscribers.size === 0) {
+            // If `this` has no subscribers it does not watch deps either so `this.vs` could be stale:
+            this.vs.splice(0);
+            this.indexMapping.splice(0);
+            const len = this.input.size();
+            for (let i = 0; i < len; ++i) {
+                const v = this.input.at(i);
+                if (this.f(v)) {
+                    this.vs.push(v);
+                    this.indexMapping[i] = this.vs.length - 1;
+                } else {
+                    this.indexMapping[i] = FilteredVecnal.NO_INDEX;
+                }
+            }
+            // OPTIMIZE: This combined with dep `size()` in ctor makes signal graph construction
+            // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
+            // would result from eagerly subscribing in ctor...
+        }
+        
+        return this.vs.reduce(f, acc);
     }
     
     at(i: number): T {
@@ -603,6 +649,82 @@ class FilteredVecnal<T> implements Vecnal<T>, IndexedSubscriber<T> {
             subscriber.onRemove(i);
         }
     }
+}
+
+class ReducedSignal<U, T> implements Signal<U>, IndexedSubscriber<T> {
+    private v: U;
+    private readonly subscribers = new Set<Subscriber<U>>();
+    private readonly depSubscriber: Subscriber<U>;
+
+    constructor(
+        private readonly equals: (x: U, y: U) => boolean,
+        private readonly f: (acc: U, v: T) => U,
+        private readonly inputAcc: Signal<U>,
+        private readonly inputColl: Vecnal<T>
+    ) {
+        this.v = inputColl.reduce(f, inputAcc.ref());
+        this.depSubscriber = (_, newAcc) => {
+            const oldVal = this.v;
+            const newVal = this.inputColl.reduce(this.f, newAcc);
+            this.v = newVal;
+            this.notify(oldVal, newVal);
+        };
+    }
+    
+    ref(): U {
+        if (this.subscribers.size === 0) {
+            // If `this` has no subscribers it does not watch deps either so `this.v` could be stale:
+            this.v = this.inputColl.reduce(this.f, this.inputAcc.ref());
+            // OPTIMIZE: This combined with dep `ref()`:s in ctor makes signal graph construction
+            // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
+            // would result from eagerly subscribing in ctor...
+        }
+        
+        return this.v;
+    }
+    
+    subscribe(subscriber: Subscriber<U>) {
+        if (this.subscribers.size === 0) {
+            // To avoid space leaks and 'unused' updates to `this` only start watching dependencies
+            // when `this` gets its first watcher:
+            this.inputAcc.subscribe(this.depSubscriber);
+            this.inputColl.iSubscribe(this);
+        }
+        
+        this.subscribers.add(subscriber);
+    }
+    
+    unsubscribe(subscriber: Subscriber<U>) {
+        this.subscribers.delete(subscriber);
+        
+        if (this.subscribers.size === 0) {
+            // Watcher count just became zero, but watchees still have pointers to `this` (via
+            // `depSubscriber`). Remove those to avoid space leaks and 'unused' updates to `this`:
+            this.inputAcc.unsubscribe(this.depSubscriber);
+            this.inputColl.iUnsubscribe(this);
+        }
+    }
+    
+    notify(v: U, u: U) { // TODO: DRY wrt. `SourceSignal::notify`
+        if (!this.equals(v, u)) {
+            for (const subscriber of this.subscribers) {
+                subscriber(v, u);
+            }
+        }
+    }
+    
+    private onChange() {
+        const oldVal = this.v;
+        const newVal = this.inputColl.reduce(this.f, this.inputAcc.ref());
+        this.v = newVal;
+        this.notify(oldVal, newVal);
+    }
+    
+    onInsert(_: number, _1: T) { this.onChange(); }
+    
+    onRemove(_: number) { this.onChange(); }
+    
+    onSubstitute(_: number, _1: T) { this.onChange(); }
 }
 
 // App
