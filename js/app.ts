@@ -727,12 +727,121 @@ class ReducedSignal<U, T> implements Signal<U>, IndexedSubscriber<T> {
     onSubstitute(_: number, _1: T) { this.onChange(); }
 }
 
+// DOM
+// ===
+
+type EventHandler = (event: Event) => void;
+
+function setAttribute(node: Element, name: string, val: string | EventHandler | boolean) {
+    if (typeof val === "string") {
+        node.setAttribute(name, val);
+    } else if (typeof val === "function") {
+        console.assert(name.slice(0, 2) === "on", "%s does not begin with 'on'", name);
+        node.addEventListener(name.slice(2), val);
+    } else if (typeof val === "boolean") {
+        if (val) {
+            node.setAttribute(name, "");
+        } else {
+            node.removeAttribute(name);
+        }
+    } else {
+        const exhaust: never = val;
+        return exhaust;
+    }
+}
+
+function childToNode(child: Node | string): Node {
+    if (child instanceof Node) {
+        return child;
+    } else if (typeof child === "string") {
+        return document.createTextNode(child);
+    } else {
+        const exhaust: never = child;
+        return exhaust;
+    }
+}
+
+function el(tagName: string, attrs: {[key: string]: any}, ...children: any): Node {
+    const node = document.createElement(tagName);
+    
+    for (const attrName in attrs) {
+        setAttribute(node, attrName, attrs[attrName]);
+    }
+    
+    for (const child of children) {
+        node.appendChild(childToNode(child));
+    }
+    
+    return node;
+}
+
 // App
 // ===
+
+function todosHeader(): Node {
+    return el("header", {"class": "header"},
+        el("h1", {}, "todos"),
+        
+        el("input", {"class": "new-todo",
+                     "placeholder": "What needs to be done?",
+                     "autofocus": true}));
+}
+
+function item(text: string, isComplete: boolean): Node {
+    return el("li", {"class": isComplete ? "completed" : ""},
+        el("div", {"class": "view"}, 
+            el("input", {"class": "toggle",
+                         "type": "checkbox",
+                         "checked": isComplete}),
+            el("label", {}, text), 
+            el("button", {"class": "destroy"})),
+        el("input", {"class": "edit", "value": text}));
+}
+
+function todos(): Node {
+    return el("section", {"class": "main"},
+        el("input", {"id": "toggle-all", "class": "toggle-all", "type": "checkbox"}),
+        el("label", {"for": "toggle-all"}, "Mark all as complete"),
+        
+        el("ul", {"class": "todo-list"},
+            item("Taste JavaScript", true),
+            item("Buy a unicorn", false)))
+}
+
+function todoFilter(label: string, path: string, isSelected: boolean): Node {
+    return el("li", {},
+        el("a", {"class": isSelected ? "selected" : "",
+                 "href": `#${path}`},
+             label));
+}
+
+function todosFooter(): Node {
+    return el("footer", {"class": "footer"},
+        el("span", {"class": "todo-count"},
+            el("strong", {}, "0"), " items left"),
+        
+        el("ul", {"class": "filters"},
+            todoFilter("All", "/", true),
+            todoFilter("Active", "/active", false),
+            todoFilter("Completed", "/completed", false)),
+        
+        el("button", {"class": "clear-completed"}, "Clear completed"));
+}
+
+function createUI(): Node {
+    return el("section", {"class": "todoapp"},
+        todosHeader(),
+                         
+        todos(),
+                
+        todosFooter());
+}
 
 (function (window) {
 	'use strict';
 
-	// Your starting point. Enjoy the ride!
+	const ui = createUI();
+	const body = document.body;
+	body.insertBefore(ui, body.children[0])
 })(window);
 
