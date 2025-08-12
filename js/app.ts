@@ -732,6 +732,75 @@ class ReducedSignal<U, T> implements Signal<U>, IndexedSubscriber<T> {
 
 type EventHandler = (event: Event) => void;
 
+// Using the correct variances here although unsafe casts will be required on actual use:
+type Watchees = Map<Observable<any>, Set<Subscriber<never>>>;
+
+// HACK for forcibly shoving these properties into DOM nodes:
+interface MountableNode {
+    __vcnDetached: boolean | undefined,
+    __vcnWatchees?: Watchees
+}
+
+function addWatchee<T>(node: MountableNode, signal: Signal<T>, subscriber: Subscriber<T>) {
+    if (!node.__vcnWatchees) { node.__vcnWatchees = new Map(); }
+    
+    node.__vcnWatchees.get(signal)!.add(subscriber);
+}
+
+function removeWatchee<T>(node: MountableNode, signal: Signal<T>, subscriber: Subscriber<T>) {
+    if (!node.__vcnWatchees) { node.__vcnWatchees = new Map(); }
+    
+    node.__vcnWatchees.get(signal)!.delete(subscriber);
+}
+
+function activateSink(node: MountableNode) {
+    if (node.__vcnWatchees) {
+        for (const [signal, subscribers] of node.__vcnWatchees) {
+            for (const subscriber of subscribers) {
+                signal.subscribe(subscriber as Subscriber<any>);
+            }
+        }
+    }
+}
+
+function deactivateSink(node: MountableNode) {
+    if (node.__vcnWatchees) {
+        for (const [signal, subscribers] of node.__vcnWatchees) {
+            for (const subscriber of subscribers) {
+                signal.unsubscribe(subscriber as Subscriber<any>);
+            }
+        }
+    }
+}
+
+function isMounted(node: Node) {
+    return !(node as unknown as MountableNode).__vcnDetached;
+}
+
+function mount(el: Element) {
+    for (const child of el.children) { mount(child); }
+    
+    activateSink(el as unknown as MountableNode);
+    
+    (el as unknown as MountableNode).__vcnDetached = false;
+}
+
+function unmount(el: Element) {
+    for (const child of el.children) { unmount(child); }
+    
+    deactivateSink(el as unknown as MountableNode);
+    
+    (el as unknown as MountableNode).__vcnDetached = true;
+}
+
+function insertBefore(parent: Node, child: Element, successor: Node) {
+    parent.insertBefore(child, successor);
+    if (isMounted(parent)) {
+        mount(child);
+        activateSink(parent as unknown as MountableNode);
+    }
+}
+
 function setAttribute(node: Element, name: string, val: string | EventHandler | boolean) {
     if (typeof val === "string") {
         node.setAttribute(name, val);
@@ -761,8 +830,9 @@ function childToNode(child: Node | string): Node {
     }
 }
 
-function el(tagName: string, attrs: {[key: string]: any}, ...children: any): Node {
+function el(tagName: string, attrs: {[key: string]: any}, ...children: any): Element {
     const node = document.createElement(tagName);
+    (node as unknown as MountableNode).__vcnDetached = true;
     
     for (const attrName in attrs) {
         setAttribute(node, attrName, attrs[attrName]);
@@ -828,7 +898,7 @@ function todosFooter(): Node {
         el("button", {"class": "clear-completed"}, "Clear completed"));
 }
 
-function createUI(): Node {
+function createUI(): Element {
     return el("section", {"class": "todoapp"},
         todosHeader(),
                          
@@ -842,6 +912,6 @@ function createUI(): Node {
 
 	const ui = createUI();
 	const body = document.body;
-	body.insertBefore(ui, body.children[0])
+	insertBefore(body, ui, body.children[0]);
 })(window);
 
