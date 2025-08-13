@@ -28,6 +28,8 @@ interface Sized {
     size: () => number;
 }
 
+function eq<T>(x: T, y: T): boolean { return x === y; }
+
 type Subscriber<T> = (v: T, u: T) => void;
 
 interface Observable<T> {
@@ -35,7 +37,7 @@ interface Observable<T> {
     
     unsubscribe: (subscriber: Subscriber<T>) => void;
     
-    notify: (v: T, u: T) => void;
+    notify: (/* TODO: Remove this param if possible: */ oldVal: T, newVal: T) => void;
 }
 
 interface IndexedSubscriber<T> {
@@ -56,14 +58,26 @@ interface IndexedObservable<T> {
     notifySubstitute: (i: number, v: T, u: T) => void;
 }
 
-interface Signal<T> extends Deref<T>, Observable<T> {}
+interface ISignal<T> extends Deref<T>, Observable<T> {}
+
+abstract class Signal<T> implements ISignal<T> {
+    abstract ref(): T;
+    
+    abstract subscribe(subscriber: Subscriber<T>): void;
+    
+    abstract unsubscribe(subscriber: Subscriber<T>): void;
+    
+    abstract notify(v: T, u: T): void;
+}
 
 interface Vecnal<T> extends Indexed<T>, Sized, Reducible<T>, IndexedObservable<T> {}
 
-class ConstSignal<T> implements Signal<T> {
+class ConstSignal<T> extends Signal<T> {
     constructor(
         private readonly v: T
-    ) {}
+    ) {
+        super();
+    }
     
     ref(): T { return this.v; }
     
@@ -100,13 +114,15 @@ class ConstVecnal<T> implements Vecnal<T> {
     notifySubstitute(_: number, _1: T) {}
 }
 
-class SourceSignal<T> implements Signal<T>, Reset<T> {
+class SourceSignal<T> extends Signal<T> implements Reset<T> {
     private readonly subscribers = new Set<Subscriber<T>>();
     
     constructor(
         private readonly equals: (x: T, y: T) => boolean,
         private v: T
-    ) {}
+    ) {
+        super();
+    }
     
     ref(): T { return this.v; }
     
@@ -208,7 +224,7 @@ class SourceVecnal<T> implements Vecnal<T>, Spliceable<T> {
     }
 }
 
-class MappedSignal<U, T extends Signal<any>[]> implements Signal<U> {
+class MappedSignal<U, T extends Signal<any>[]> extends Signal<U> {
     private readonly subscribers = new Set<Subscriber<U>>();
     private readonly deps: T;
     private readonly depSubscribers: Subscriber<any>[] = [];
@@ -219,6 +235,8 @@ class MappedSignal<U, T extends Signal<any>[]> implements Signal<U> {
         private readonly f: (...depVals: any[]) => U,
         ...deps: T
     ) {
+        super();
+        
         this.deps = deps;
         
         for (const dep of deps) {
@@ -651,7 +669,7 @@ class FilteredVecnal<T> implements Vecnal<T>, IndexedSubscriber<T> {
     }
 }
 
-class ReducedSignal<U, T> implements Signal<U>, IndexedSubscriber<T> {
+class ReducedSignal<U, T> extends Signal<U> implements IndexedSubscriber<T> {
     private v: U;
     private readonly subscribers = new Set<Subscriber<U>>();
     private readonly depSubscriber: Subscriber<U>;
@@ -662,6 +680,8 @@ class ReducedSignal<U, T> implements Signal<U>, IndexedSubscriber<T> {
         private readonly inputAcc: Signal<U>,
         private readonly inputColl: Vecnal<T>
     ) {
+        super();
+        
         this.v = inputColl.reduce(f, inputAcc.ref());
         this.depSubscriber = (_, newAcc) => {
             const oldVal = this.v;
@@ -744,13 +764,23 @@ interface MountableNode {
 function addWatchee<T>(node: MountableNode, signal: Signal<T>, subscriber: Subscriber<T>) {
     if (!node.__vcnWatchees) { node.__vcnWatchees = new Map(); }
     
-    node.__vcnWatchees.get(signal)!.add(subscriber);
+    const subscribers = node.__vcnWatchees.get(signal);
+    if (subscribers) {
+        subscribers.add(subscriber);
+    } else {
+        node.__vcnWatchees.set(signal, new Set([subscriber]));
+    }
 }
 
 function removeWatchee<T>(node: MountableNode, signal: Signal<T>, subscriber: Subscriber<T>) {
     if (!node.__vcnWatchees) { node.__vcnWatchees = new Map(); }
     
-    node.__vcnWatchees.get(signal)!.delete(subscriber);
+    const subscribers = node.__vcnWatchees.get(signal);
+    if (subscribers) {
+        subscribers.delete(subscriber);
+    } else {
+        console.error("signal has no subscribers to delete from");
+    }
 }
 
 function activateSink(node: MountableNode) {
@@ -801,18 +831,32 @@ function insertBefore(parent: Node, child: Element, successor: Node) {
     }
 }
 
-function setAttribute(node: Element, name: string, val: string | EventHandler | boolean) {
+type AttributeString = string | undefined;
+
+type AttributeValue = AttributeString | Signal<AttributeString> | EventHandler;
+
+function setAttributeString(node: Element, name: string, val: AttributeString) {
     if (typeof val === "string") {
         node.setAttribute(name, val);
+    } else if (typeof val === "undefined") {
+        node.removeAttribute(name);
+    } else {
+        const exhaust: never = val;
+        return exhaust;
+    }
+}
+
+function setAttribute(node: Element, name: string, val: AttributeValue) {
+    if (typeof val === "string" || typeof val === "undefined") {
+        setAttributeString(node, name, val);
+    } else if (val instanceof Signal) {
+        setAttributeString(node, name, val.ref());
+        addWatchee(node as unknown as MountableNode, val, (_, newVal) =>
+            setAttributeString(node, name, newVal)
+        );
     } else if (typeof val === "function") {
         console.assert(name.slice(0, 2) === "on", "%s does not begin with 'on'", name);
         node.addEventListener(name.slice(2), val);
-    } else if (typeof val === "boolean") {
-        if (val) {
-            node.setAttribute(name, "");
-        } else {
-            node.removeAttribute(name);
-        }
     } else {
         const exhaust: never = val;
         return exhaust;
@@ -878,12 +922,15 @@ function todos(): Node {
             item("Buy a unicorn", false)))
 }
 
-function todoFilter(label: string, path: string, isSelected: boolean): Node {
+function todoFilter(label: string, path: string, isSelected: Signal<boolean>): Node {
     return el("li", {},
-        el("a", {"class": isSelected ? "selected" : "",
+        el("a", {"class": map(eq, (isSelected) => isSelected ? "selected" : "",
+                    isSelected),
                  "href": `#${path}`},
              label));
 }
+
+const allIsSelected = new SourceSignal(eq, true);
 
 function todosFooter(): Node {
     return el("footer", {"class": "footer"},
@@ -891,9 +938,9 @@ function todosFooter(): Node {
             el("strong", {}, "0"), " items left"),
         
         el("ul", {"class": "filters"},
-            todoFilter("All", "/", true),
-            todoFilter("Active", "/active", false),
-            todoFilter("Completed", "/completed", false)),
+            todoFilter("All", "/", allIsSelected),
+            todoFilter("Active", "/active", new ConstSignal(false)),
+            todoFilter("Completed", "/completed", new ConstSignal(false))),
         
         el("button", {"class": "clear-completed"}, "Clear completed"));
 }
