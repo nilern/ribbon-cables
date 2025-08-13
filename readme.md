@@ -19,7 +19,7 @@
   changed (or worse, was just inserted or removed).
     - `Vecnal` abstraction similar to
       [Qt models](https://doc.qt.io/qt-6/qabstractitemmodel.html#signals)
-      and also related to
+      and also related to DOM child management (`Node::replaceChild`) and
       [edit distance](https://en.wikipedia.org/wiki/Edit_distance).
         - We can use edit distance -related algorithms such as the
           [Myers Diff](http://www.xmailserver.org/diff2.pdf)
