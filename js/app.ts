@@ -30,6 +30,8 @@ interface Sized {
 
 function eq<T>(x: T, y: T): boolean { return x === y; }
 
+function str(x: any): string { return `${x}`; }
+
 type Subscriber<T> = (v: T, u: T) => void;
 
 interface Observable<T> {
@@ -807,16 +809,20 @@ function isMounted(node: Node) {
     return !(node as unknown as MountableNode).__vcnDetached;
 }
 
-function mount(el: Element) {
-    for (const child of el.children) { mount(child); }
+function mount(el: Node) {
+    if (el instanceof Element) {
+        for (const child of el.children) { mount(child); }
+    }
     
     activateSink(el as unknown as MountableNode);
     
     (el as unknown as MountableNode).__vcnDetached = false;
 }
 
-function unmount(el: Element) {
-    for (const child of el.children) { unmount(child); }
+function unmount(el: Node) {
+    if (el instanceof Element) {
+        for (const child of el.children) { unmount(child); }
+    }
     
     deactivateSink(el as unknown as MountableNode);
     
@@ -828,6 +834,14 @@ function insertBefore(parent: Node, child: Element, successor: Node) {
     if (isMounted(parent)) {
         mount(child);
         activateSink(parent as unknown as MountableNode);
+    }
+}
+
+function replaceChild(parent: Node, child: Element, oldChild: Element) {
+    parent.replaceChild(child, oldChild);
+    if (isMounted(parent)) {
+        unmount(oldChild);
+        mount(child);
     }
 }
 
@@ -863,7 +877,11 @@ function setAttribute(node: Element, name: string, val: AttributeValue) {
     }
 }
 
-function childToNode(child: Node | string): Node {
+type ChildValue = Node | string;
+
+type Child = ChildValue | Signal<ChildValue>;
+
+function childValueToNode(child: ChildValue): Node {
     if (child instanceof Node) {
         return child;
     } else if (typeof child === "string") {
@@ -874,7 +892,23 @@ function childToNode(child: Node | string): Node {
     }
 }
 
-function el(tagName: string, attrs: {[key: string]: any}, ...children: any): Element {
+function initChild(node: Element, index: number, child: Child) {
+    if (child instanceof Node || typeof child === "string") {
+        node.appendChild(childValueToNode(child));
+    } else if (child instanceof Signal) {
+        const childNode = childValueToNode(child.ref());
+        node.appendChild(childNode);
+        addWatchee(node as unknown as MountableNode, child, (_, childVal) => {
+            const childNode = childValueToNode(childVal);
+            const oldChildNode = node.childNodes[index];
+            replaceChild(node, childNode as Element, oldChildNode as Element);
+        });
+    } else {
+        const _exhaust: never = child;
+    }
+}
+
+function el(tagName: string, attrs: {[key: string]: AttributeValue}, ...children: Child[]): Element {
     const node = document.createElement(tagName);
     (node as unknown as MountableNode).__vcnDetached = true;
     
@@ -882,8 +916,11 @@ function el(tagName: string, attrs: {[key: string]: any}, ...children: any): Ele
         setAttribute(node, attrName, attrs[attrName]);
     }
     
-    for (const child of children) {
-        node.appendChild(childToNode(child));
+    {
+        const len = children.length;
+        for (let i = 0; i < len; ++i) {
+            initChild(node, i, children[i]);
+        }
     }
     
     return node;
@@ -892,13 +929,15 @@ function el(tagName: string, attrs: {[key: string]: any}, ...children: any): Ele
 // App
 // ===
 
+const todoCount = new SourceSignal(eq, 0); // Global for REPL testing
+
 function todosHeader(): Node {
     return el("header", {"class": "header"},
         el("h1", {}, "todos"),
         
         el("input", {"class": "new-todo",
                      "placeholder": "What needs to be done?",
-                     "autofocus": true}));
+                     "autofocus": "true"}));
 }
 
 function item(text: string, isComplete: boolean): Node {
@@ -906,7 +945,7 @@ function item(text: string, isComplete: boolean): Node {
         el("div", {"class": "view"}, 
             el("input", {"class": "toggle",
                          "type": "checkbox",
-                         "checked": isComplete}),
+                         "checked": isComplete ? "true" : undefined}),
             el("label", {}, text), 
             el("button", {"class": "destroy"})),
         el("input", {"class": "edit", "value": text}));
@@ -932,10 +971,10 @@ function todoFilter(label: string, path: string, isSelected: Signal<boolean>): N
 
 const allIsSelected = new SourceSignal(eq, true);
 
-function todosFooter(): Node {
+function todosFooter(todoCount: Signal<number>): Node {
     return el("footer", {"class": "footer"},
         el("span", {"class": "todo-count"},
-            el("strong", {}, "0"), " items left"),
+            el("strong", {}, map(eq, str, todoCount)), " items left"),
         
         el("ul", {"class": "filters"},
             todoFilter("All", "/", allIsSelected),
@@ -945,19 +984,19 @@ function todosFooter(): Node {
         el("button", {"class": "clear-completed"}, "Clear completed"));
 }
 
-function createUI(): Element {
+function createUI(todoCount: Signal<number>): Element {
     return el("section", {"class": "todoapp"},
         todosHeader(),
                          
         todos(),
                 
-        todosFooter());
+        todosFooter(todoCount));
 }
 
 (function (window) {
 	'use strict';
 
-	const ui = createUI();
+	const ui = createUI(todoCount);
 	const body = document.body;
 	insertBefore(body, ui, body.children[0]);
 })(window);
