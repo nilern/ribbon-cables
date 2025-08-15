@@ -57,7 +57,7 @@ interface IndexedObservable<T> {
     notifyInsert: (i: number, v: T) => void;
     notifyRemove: (i: number) => void;
     // TODO: notifyMove: (i: number, j: number) => void;
-    notifySubstitute: (i: number, v: T, u: T) => void;
+    notifySubstitute: (i: number, /* TODO: Remove this param if possible: */ v: T, u: T) => void;
 }
 
 interface ISignal<T> extends Deref<T>, Observable<T> {}
@@ -653,6 +653,177 @@ class FilteredVecnal<T> implements Vecnal<T>, IndexedSubscriber<T> {
     
     notifySubstitute(i: number, v: T, u: T) {
         // No `this.equals` check; presumably `this.input` already took care of that. 
+        for (const subscriber of this.subscribers) {
+            subscriber.onSubstitute(i, u);
+        }
+    }
+    
+    notifyInsert(i: number, v: T) { // TODO: DRY (wrt. e.g. `SourceVecnal`)
+        for (const subscriber of this.subscribers) {
+            subscriber.onInsert(i, v);
+        }
+    }
+    
+    notifyRemove(i: number) { // TODO: DRY (wrt. e.g. `SourceVecnal`)
+        for (const subscriber of this.subscribers) {
+            subscriber.onRemove(i);
+        }
+    }
+}
+
+class ConcatVecnalDepSubscriber<T> implements IndexedSubscriber<T> {
+    constructor(
+        private readonly vecnal: ConcatVecnal<T>,
+        private readonly depIndex: number
+    ) {}
+    
+    onInsert(subIndex: number, v: T) {
+        const i = this.vecnal.offsets[this.depIndex] + subIndex;
+        this.vecnal.vs.splice(i, 0, v);
+        {
+            const len = this.vecnal.offsets.length;
+            for (let j = this.depIndex + 1; j < len; ++j) {
+                ++this.vecnal.offsets[j];
+            }
+        }
+        this.vecnal.notifyInsert(i, v);
+    }
+    
+    onRemove(subIndex: number) {
+        const i = this.vecnal.offsets[this.depIndex] + subIndex;
+        this.vecnal.vs.splice(i, 1);
+        {
+            const len = this.vecnal.offsets.length;
+            for (let j = this.depIndex + 1; j < len; ++j) {
+                --this.vecnal.offsets[j];
+            }
+        }
+        this.vecnal.notifyRemove(i);
+    }
+    
+    onSubstitute(subIndex: number, v: T) {
+        const i = this.vecnal.offsets[this.depIndex] + subIndex;
+        const oldv = this.vecnal.vs[i];
+        this.vecnal.vs[i] = v;
+        this.vecnal.notifySubstitute(i, oldv, v);
+    }
+}
+
+class ConcatVecnal<T> implements Vecnal<T> {
+    // Some members need to be public for `ConcatVecnalDepSubscriber`:
+    // TODO: Avoid that.
+    readonly vs: T[]; // OPTIMIZE: RRB vector
+    readonly offsets: number[];
+    private readonly deps: Vecnal<T>[];
+    private readonly depSubscribers: IndexedSubscriber<T>[];
+    private readonly subscribers = new Set<IndexedSubscriber<T>>();
+    
+    constructor(
+        ...inputs: Vecnal<T>[]
+    ) {
+        this.vs = [];
+        this.offsets = [];
+        this.depSubscribers = [];
+        {
+            const len = inputs.length;
+            let offset = 0;
+            for (let i = 0; i < len; ++i) {
+                const input = inputs[i];
+            
+                input.reduce((acc, v) => this.vs.push(v), 0);
+                
+                this.offsets.push(offset);
+                offset += input.size();
+                
+                this.depSubscribers.push(new ConcatVecnalDepSubscriber(this, i));
+            }
+        }
+        
+        this.deps = inputs;
+    }
+    
+    size(): number {
+        if (this.subscribers.size > 0) {
+            return this.vs.length;
+        } else {
+            // If `this` has no subscribers it does not watch deps either so `this.vs` could be stale:
+            return this.deps.reduce((acc, dep) => acc + dep.size(), 0);
+            // OPTIMIZE: This combined with dep `reduce()`:s in ctor makes signal graph construction
+            // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
+            // would result from eagerly subscribing in ctor...
+        }
+    }
+    
+    at(index: number): T {
+        if (this.subscribers.size > 0) {
+            return this.vs[index];
+        } else {
+            // If `this` has no subscribers it does not watch deps either so `this.vs` could be stale:
+            {
+                let subi = index;
+                for (const dep of this.deps) {
+                    const depLen = dep.size();
+                
+                    if (subi < depLen) {
+                        return dep.at(subi);
+                    }
+                    
+                    subi -= depLen;
+                }
+            }
+            // OPTIMIZE: This combined with dep `reduce()`:s in ctor makes signal graph construction
+            // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
+            // would result from eagerly subscribing in ctor...
+            
+            // TODO: Should it be possible to return a default (usually `undefined`/sentinel) instead?:
+            throw Error("Out of bounds");
+        }
+    }
+    
+    reduce<U>(f: (acc: U, v: T) => U, acc: U): U {
+        if (this.subscribers.size > 0) {
+            return this.vs.reduce(f, acc);
+        } else {
+            // If `this` has no subscribers it does not watch deps either so `this.vs` could be stale:
+            return this.deps.reduce((acc, dep) => dep.reduce(f, acc), acc);
+            // OPTIMIZE: This combined with dep `reduce()`:s in ctor makes signal graph construction
+            // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
+            // would result from eagerly subscribing in ctor...
+        }
+    }
+    
+    iSubscribe(subscriber: IndexedSubscriber<T>) {
+        if (this.subscribers.size === 0) {
+            // To avoid space leaks and 'unused' updates to `this` only start watching dependencies
+            // when `this` gets its first watcher:
+            {
+                const len = this.deps.length;
+                for (let i = 0; i < len; ++i) {
+                    this.deps[i].iSubscribe(this.depSubscribers[i]);
+                }
+            }
+        }
+        
+        this.subscribers.add(subscriber);
+    }
+    
+    iUnsubscribe(subscriber: IndexedSubscriber<T>) {
+        this.subscribers.delete(subscriber);
+        
+        if (this.subscribers.size === 0) {
+            // Watcher count just became zero, but watchees still have pointers to `this` (via
+            // `depSubscriber`). Remove those to avoid space leaks and 'unused' updates to `this`:
+            {
+                const len = this.deps.length;
+                for (let i = 0; i < len; ++i) {
+                    this.deps[i].iUnsubscribe(this.depSubscribers[i]);
+                }
+            }
+        }
+    }
+    
+    notifySubstitute(i: number, v: T, u: T) { // TODO: DRY (wrt. e.g. `FilteredVecnal`)
+        // No `this.equals` check; presumably the dependency already took care of that.:
         for (const subscriber of this.subscribers) {
             subscriber.onSubstitute(i, u);
         }
