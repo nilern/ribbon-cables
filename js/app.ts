@@ -710,36 +710,33 @@ class ConcatVecnalDepSubscriber<T> implements IndexedSubscriber<T> {
 }
 
 class ConcatVecnal<T> implements Vecnal<T> {
-    // Some members need to be public for `ConcatVecnalDepSubscriber`:
-    // TODO: Avoid that.
+    // Some members need to be public for `ConcatVecnalDepSubscriber`. This class itself need not be
+    // a public module member though so it will be fine:
     readonly vs: T[]; // OPTIMIZE: RRB vector
     readonly offsets: number[];
-    private readonly deps: Vecnal<T>[];
     private readonly depSubscribers: IndexedSubscriber<T>[];
     private readonly subscribers = new Set<IndexedSubscriber<T>>();
     
     constructor(
-        ...inputs: Vecnal<T>[]
+        private readonly deps: Vecnal<T>[]
     ) {
         this.vs = [];
         this.offsets = [];
         this.depSubscribers = [];
         {
-            const len = inputs.length;
+            const len = deps.length;
             let offset = 0;
             for (let i = 0; i < len; ++i) {
-                const input = inputs[i];
+                const dep = this.deps[i];
             
-                input.reduce((acc, v) => this.vs.push(v), 0);
+                dep.reduce((acc, v) => this.vs.push(v), 0);
                 
                 this.offsets.push(offset);
-                offset += input.size();
+                offset += dep.size();
                 
                 this.depSubscribers.push(new ConcatVecnalDepSubscriber(this, i));
             }
         }
-        
-        this.deps = inputs;
     }
     
     size(): number {
@@ -841,6 +838,9 @@ class ConcatVecnal<T> implements Vecnal<T> {
         }
     }
 }
+
+// We will export just this instead of the `ConcatVecnal` class:
+function concat<T>(...vecnals: Vecnal<T>[]): Vecnal<T> { return new ConcatVecnal(vecnals); }
 
 class ReducedSignal<U, T> extends Signal<U> implements IndexedSubscriber<T> {
     private v: U;
