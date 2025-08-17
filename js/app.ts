@@ -842,6 +842,65 @@ class ConcatVecnal<T> implements Vecnal<T> {
 // We will export just this instead of the `ConcatVecnal` class:
 function concat<T>(...vecnals: Vecnal<T>[]): Vecnal<T> { return new ConcatVecnal(vecnals); }
 
+class SingleElementVecnal<T> implements Vecnal<T> {
+    private v: T;
+    private readonly subscribers = new Set<IndexedSubscriber<T>>();
+    private readonly depSubscriber: Subscriber<T>;
+    
+    constructor(
+        private readonly signal: Signal<T>
+    ) {
+        this.v = signal.ref();
+        this.depSubscriber = (oldVal, newVal) => {
+            this.v = newVal;
+            this.notifySubstitute(0, oldVal, newVal);
+        }
+    }
+    
+    size(): number { return 1; }
+    
+    at(i: number): T {
+        if (i !== 0) { throw Error("Out of bounds"); }
+        
+        return this.v;
+    }
+    
+    reduce<U>(f: (acc: U, v: T) => U, acc: U): U { return f(acc, this.v); }
+    
+    iSubscribe(subscriber: IndexedSubscriber<T>) {
+        if (this.subscribers.size === 0) {
+            // To avoid space leaks and 'unused' updates to `this` only start watching dependencies
+            // when `this` gets its first watcher:
+            this.signal.subscribe(this.depSubscriber);
+        }
+        
+        this.subscribers.add(subscriber);
+    }
+    
+    iUnsubscribe(subscriber: IndexedSubscriber<T>) {
+        this.subscribers.delete(subscriber);
+        
+        if (this.subscribers.size === 0) {
+            // Watcher count just became zero, but watchees still have pointers to `this` (via
+            // `depSubscriber`). Remove those to avoid space leaks and 'unused' updates to `this`:
+            this.signal.unsubscribe(this.depSubscriber);
+        }
+    }
+    
+    notifySubstitute(i: number, v: T, u: T) { // TODO: DRY (wrt. e.g. `FilteredVecnal`)
+        // No `this.equals` check; presumably the dependency already took care of that.:
+        for (const subscriber of this.subscribers) {
+            subscriber.onSubstitute(i, u);
+        }
+    }
+    
+    notifyInsert(i: number, v: T) { throw Error("Unreachable"); }
+    
+    notifyRemove(i: number) { throw Error("Unreachable"); }
+}
+
+function lift<T>(signal: Signal<T>): Vecnal<T> { return new SingleElementVecnal(signal); }
+
 class ReducedSignal<U, T> extends Signal<U> implements IndexedSubscriber<T> {
     private v: U;
     private readonly subscribers = new Set<Subscriber<U>>();
