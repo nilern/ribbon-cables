@@ -1229,14 +1229,6 @@ class Nanny implements IndexedSubscriber<Node> {
     }
 }
 
-function initChild(node: Element, index: number, child: ChildValue) {
-    if (child instanceof Node || typeof child === "string") {
-        node.appendChild(childValueToNode(child));
-    } else {
-        const _exhaust: never = child;
-    }
-}
-
 function el(tagName: string, attrs: {[key: string]: AttributeValue}, ...children: Child[]): Element {
     const node = document.createElement(tagName);
     (node as unknown as MountableNode).__vcnDetached = true;
