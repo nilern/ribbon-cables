@@ -66,13 +66,26 @@ abstract class Signal<T> implements ISignal<T> {
     abstract ref(): T;
     
     abstract subscribe(subscriber: Subscriber<T>): void;
-    
     abstract unsubscribe(subscriber: Subscriber<T>): void;
-    
     abstract notify(v: T, u: T): void;
 }
 
-interface Vecnal<T> extends Indexed<T>, Sized, Reducible<T>, IndexedObservable<T> {}
+// TODO: Ribbon cable -inspired name:
+interface IVecnal<T> extends Indexed<T>, Sized, Reducible<T>, IndexedObservable<T> {}
+
+abstract class Vecnal<T> implements IVecnal<T> {
+    abstract size(): number;
+    
+    abstract at(i: number): T;
+    
+    abstract reduce<U>(f: (acc: U, v: T) => U, acc: U): U;
+    
+    abstract iSubscribe(subscriber: IndexedSubscriber<T>): void;
+    abstract iUnsubscribe(subscriber: IndexedSubscriber<T>): void;
+    abstract notifyInsert(i: number, v: T): void;
+    abstract notifyRemove(i: number): void;
+    abstract notifySubstitute(i: number, v: T, u: T): void;
+}
 
 class ConstSignal<T> extends Signal<T> {
     constructor(
@@ -90,12 +103,14 @@ class ConstSignal<T> extends Signal<T> {
     notify(v: T, u: T) {}
 }
 
-class ConstVecnal<T> implements Vecnal<T> {
+class ConstVecnal<T> extends Vecnal<T> {
     private readonly vs: T[]; // TODO: Immutable vector
     
     constructor(
         vs: T[] // TODO: Immutable vector
     ) {
+        super();
+        
         this.vs = [...vs];
     }
     
@@ -154,7 +169,7 @@ class SourceSignal<T> extends Signal<T> implements Reset<T> {
     }
 }
 
-class SourceVecnal<T> implements Vecnal<T>, Spliceable<T> {
+class SourceVecnal<T> extends Vecnal<T> implements Spliceable<T> {
     private readonly vs: T[]; // OPTIMIZE: RRB vector
     private readonly subscribers = new Set<IndexedSubscriber<T>>();
     
@@ -162,6 +177,8 @@ class SourceVecnal<T> implements Vecnal<T>, Spliceable<T> {
         private readonly equals: (x: T, y: T) => boolean,
         vs: T[] // TODO: Immutable vector
     ) {
+        super();
+        
         this.vs = [...vs];
     }
     
@@ -316,7 +333,7 @@ function map2<R, T, U>(equals: (x: R, y: R) => boolean, f: (x: T, y: U) => R,
     return new MappedSignal(equals, g, s1, s2);
 }
 
-class MappedVecnal<U, T> implements Vecnal<U>, IndexedSubscriber<T> {
+class MappedVecnal<U, T> extends Vecnal<U> implements IndexedSubscriber<T> {
     private readonly vs: U[]; // OPTIMIZE: RRB vector
     private readonly subscribers = new Set<IndexedSubscriber<U>>();
 
@@ -325,6 +342,8 @@ class MappedVecnal<U, T> implements Vecnal<U>, IndexedSubscriber<T> {
         private readonly f: (v: T) => U,
         private readonly input: Vecnal<T>
     ) {
+        super();
+        
         this.vs = [];
         const len = input.size();
         for (let i = 0; i < len; ++i) {
@@ -440,7 +459,7 @@ class MappedVecnal<U, T> implements Vecnal<U>, IndexedSubscriber<T> {
     }
 }
 
-class FilteredVecnal<T> implements Vecnal<T>, IndexedSubscriber<T> {
+class FilteredVecnal<T> extends Vecnal<T> implements IndexedSubscriber<T> {
     // C style non-index should make `indexMapping` an array of 32-bit ints at runtime:
     private static readonly NO_INDEX = -1;
 
@@ -452,6 +471,8 @@ class FilteredVecnal<T> implements Vecnal<T>, IndexedSubscriber<T> {
         private readonly f: (v: T) => boolean,
         private readonly input: Vecnal<T>
     ) {
+        super();
+        
         this.vs = [];
         this.indexMapping = [];
         const len = input.size();
@@ -709,7 +730,7 @@ class ConcatVecnalDepSubscriber<T> implements IndexedSubscriber<T> {
     }
 }
 
-class ConcatVecnal<T> implements Vecnal<T> {
+class ConcatVecnal<T> extends Vecnal<T> {
     // Some members need to be public for `ConcatVecnalDepSubscriber`. This class itself need not be
     // a public module member though so it will be fine:
     readonly vs: T[]; // OPTIMIZE: RRB vector
@@ -720,6 +741,8 @@ class ConcatVecnal<T> implements Vecnal<T> {
     constructor(
         private readonly deps: Vecnal<T>[]
     ) {
+        super();
+        
         this.vs = [];
         this.offsets = [];
         this.depSubscribers = [];
@@ -842,7 +865,7 @@ class ConcatVecnal<T> implements Vecnal<T> {
 // We will export just this instead of the `ConcatVecnal` class:
 function concat<T>(...vecnals: Vecnal<T>[]): Vecnal<T> { return new ConcatVecnal(vecnals); }
 
-class SingleElementVecnal<T> implements Vecnal<T> {
+class SingleElementVecnal<T> extends Vecnal<T> {
     private v: T;
     private readonly subscribers = new Set<IndexedSubscriber<T>>();
     private readonly depSubscriber: Subscriber<T>;
@@ -850,6 +873,8 @@ class SingleElementVecnal<T> implements Vecnal<T> {
     constructor(
         private readonly signal: Signal<T>
     ) {
+        super();
+        
         this.v = signal.ref();
         this.depSubscriber = (oldVal, newVal) => {
             this.v = newVal;
@@ -986,11 +1011,13 @@ type EventHandler = (event: Event) => void;
 
 // Using the correct variances here although unsafe casts will be required on actual use:
 type Watchees = Map<Observable<any>, Set<Subscriber<never>>>;
+type MultiWatchees = Map<IndexedObservable<any>, Set<IndexedSubscriber<never>>>;
 
 // HACK for forcibly shoving these properties into DOM nodes:
 interface MountableNode {
     __vcnDetached: boolean | undefined,
-    __vcnWatchees?: Watchees
+    __vcnWatchees?: Watchees,
+    __vcnMultiWatchees?: MultiWatchees
 }
 
 function addWatchee<T>(node: MountableNode, signal: Signal<T>, subscriber: Subscriber<T>) {
@@ -1015,11 +1042,45 @@ function removeWatchee<T>(node: MountableNode, signal: Signal<T>, subscriber: Su
     }
 }
 
+function addMultiWatchee<T>(node: MountableNode, vecnal: Vecnal<T>,
+    subscriber: IndexedSubscriber<T>
+) {
+    if (!node.__vcnMultiWatchees) { node.__vcnMultiWatchees = new Map(); }
+    
+    const subscribers = node.__vcnMultiWatchees.get(vecnal);
+    if (subscribers) {
+        subscribers.add(subscriber);
+    } else {
+        node.__vcnMultiWatchees.set(vecnal, new Set([subscriber]));
+    }
+}
+
+function removeMultiWatchee<T>(node: MountableNode, vecnal: Vecnal<T>,
+    subscriber: IndexedSubscriber<T>
+) {
+    if (!node.__vcnMultiWatchees) { node.__vcnMultiWatchees = new Map(); }
+    
+    const subscribers = node.__vcnMultiWatchees.get(vecnal);
+    if (subscribers) {
+        subscribers.delete(subscriber);
+    } else {
+        console.error("vecnal has no subscribers to delete from");
+    }
+}
+
 function activateSink(node: MountableNode) {
     if (node.__vcnWatchees) {
         for (const [signal, subscribers] of node.__vcnWatchees) {
             for (const subscriber of subscribers) {
                 signal.subscribe(subscriber as Subscriber<any>);
+            }
+        }
+    }
+        
+    if (node.__vcnMultiWatchees) {
+        for (const [signal, subscribers] of node.__vcnMultiWatchees) {
+            for (const subscriber of subscribers) {
+                signal.iSubscribe(subscriber as IndexedSubscriber<any>);
             }
         }
     }
@@ -1030,6 +1091,14 @@ function deactivateSink(node: MountableNode) {
         for (const [signal, subscribers] of node.__vcnWatchees) {
             for (const subscriber of subscribers) {
                 signal.unsubscribe(subscriber as Subscriber<any>);
+            }
+        }
+    }
+        
+    if (node.__vcnMultiWatchees) {
+        for (const [signal, subscribers] of node.__vcnMultiWatchees) {
+            for (const subscriber of subscribers) {
+                signal.iUnsubscribe(subscriber as IndexedSubscriber<any>);
             }
         }
     }
@@ -1059,7 +1128,7 @@ function unmount(el: Node) {
     (el as unknown as MountableNode).__vcnDetached = true;
 }
 
-function insertBefore(parent: Node, child: Element, successor: Node) {
+function insertBefore(parent: Element, child: Node, successor: Node) {
     parent.insertBefore(child, successor);
     if (isMounted(parent)) {
         mount(child);
@@ -1067,7 +1136,14 @@ function insertBefore(parent: Node, child: Element, successor: Node) {
     }
 }
 
-function replaceChild(parent: Node, child: Element, oldChild: Element) {
+function removeChild(parent: Element, child: Node) {
+    parent.removeChild(child);
+    if (isMounted(parent)) {
+        unmount(child);
+    }
+}
+
+function replaceChild(parent: Element, child: Node, oldChild: Node) {
     parent.replaceChild(child, oldChild);
     if (isMounted(parent)) {
         unmount(oldChild);
@@ -1109,7 +1185,7 @@ function setAttribute(node: Element, name: string, val: AttributeValue) {
 
 type ChildValue = Node | string;
 
-type Child = ChildValue | Signal<ChildValue>;
+type Child = ChildValue | ChildValue[] | Signal<ChildValue> | Vecnal<ChildValue>;
 
 function childValueToNode(child: ChildValue): Node {
     if (child instanceof Node) {
@@ -1122,17 +1198,40 @@ function childValueToNode(child: ChildValue): Node {
     }
 }
 
-function initChild(node: Element, index: number, child: Child) {
+function childToVecnal(child: Child): Vecnal<Node> {
+    if (child instanceof Vecnal) {
+        return new MappedVecnal(eq, childValueToNode, child);
+    } else if (child instanceof Signal) {
+        return lift(map(eq, childValueToNode, child));
+    } else if (Array.isArray(child)) {
+        return new ConstVecnal(child.map(childValueToNode));
+    } else {
+        return new ConstVecnal([childValueToNode(child)]);
+    }
+}
+
+class Nanny implements IndexedSubscriber<Node> {
+    constructor(
+        private readonly parent: Element
+    ) {}
+
+    onInsert(i: number, child: Node) {
+        const successor = this.parent.childNodes[i];
+        insertBefore(this.parent, child, successor);
+    }
+    
+    onRemove(i: number) {
+        removeChild(this.parent, this.parent.childNodes[i]);
+    }
+
+    onSubstitute(i: number, child: Node) {
+        replaceChild(this.parent, child, this.parent.childNodes[i]);
+    }
+}
+
+function initChild(node: Element, index: number, child: ChildValue) {
     if (child instanceof Node || typeof child === "string") {
         node.appendChild(childValueToNode(child));
-    } else if (child instanceof Signal) {
-        const childNode = childValueToNode(child.ref());
-        node.appendChild(childNode);
-        addWatchee(node as unknown as MountableNode, child, (_, childVal) => {
-            const childNode = childValueToNode(childVal);
-            const oldChildNode = node.childNodes[index];
-            replaceChild(node, childNode as Element, oldChildNode as Element);
-        });
     } else {
         const _exhaust: never = child;
     }
@@ -1147,10 +1246,12 @@ function el(tagName: string, attrs: {[key: string]: AttributeValue}, ...children
     }
     
     {
-        const len = children.length;
-        for (let i = 0; i < len; ++i) {
-            initChild(node, i, children[i]);
-        }
+        // Need to cast from `Vecnal<unknown>` because `apply` is so weakly typed:
+        const childrenVecnal = concat.apply(undefined, children.map(childToVecnal)) as Vecnal<Node>;
+        
+        childrenVecnal.reduce((_, child) => node.appendChild(child), /*HACK:*/ undefined as void);
+        
+        addMultiWatchee(node as unknown as MountableNode, childrenVecnal, new Nanny(node));
     }
     
     return node;
@@ -1159,36 +1260,52 @@ function el(tagName: string, attrs: {[key: string]: AttributeValue}, ...children
 // App
 // ===
 
-const todoCount = new SourceSignal(eq, 0); // Global for REPL testing
+class Todo {
+    public readonly isComplete = false;
+    
+    constructor(public readonly text: string) {}
+};
 
-function todosHeader(): Node {
+const todos = new SourceVecnal<Todo>(eq, []); // Global for REPL testing
+
+function todosHeader(todos: SourceVecnal<Todo>): Node {
+    function handleKey(e: Event) {
+        const event = e as KeyboardEvent;
+        if (event.key === "Enter") {
+            const input = event.target as HTMLInputElement;
+            todos.insert(todos.size(), new Todo(input.value.trim())); // TODO: Add `todos.push()`
+            input.value = "";
+        }
+    }
+
     return el("header", {"class": "header"},
         el("h1", {}, "todos"),
         
         el("input", {"class": "new-todo",
                      "placeholder": "What needs to be done?",
-                     "autofocus": "true"}));
+                     "autofocus": "true",
+                     "onkeydown": handleKey}));
 }
 
-function item(text: string, isComplete: boolean): Node {
+// OPTIMIZE: Take a `Signal<Todo>` instead:
+function item({text, isComplete}: Todo): Node {
     return el("li", {"class": isComplete ? "completed" : ""},
         el("div", {"class": "view"}, 
             el("input", {"class": "toggle",
                          "type": "checkbox",
-                         "checked": isComplete ? "true" : undefined}),
-            el("label", {}, text), 
-            el("button", {"class": "destroy"})),
-        el("input", {"class": "edit", "value": text}));
+                         "checked": isComplete ? "true" : undefined}), // TODO: Interaction
+            el("label", {}, text),
+            el("button", {"class": "destroy"})), // TODO: Interaction
+        el("input", {"class": "edit", "value": text})); // TODO: Interaction
 }
 
-function todos(): Node {
+function todoList(todos: Vecnal<Todo>): Node {
     return el("section", {"class": "main"},
         el("input", {"id": "toggle-all", "class": "toggle-all", "type": "checkbox"}),
         el("label", {"for": "toggle-all"}, "Mark all as complete"),
         
         el("ul", {"class": "todo-list"},
-            item("Taste JavaScript", true),
-            item("Buy a unicorn", false)))
+            new MappedVecnal(eq, item, todos)))
 }
 
 function todoFilter(label: string, path: string, isSelected: Signal<boolean>): Node {
@@ -1201,32 +1318,35 @@ function todoFilter(label: string, path: string, isSelected: Signal<boolean>): N
 
 const allIsSelected = new SourceSignal(eq, true);
 
-function todosFooter(todoCount: Signal<number>): Node {
+function todosFooter(todos: Vecnal<Todo>): Node {
+    // OPTIMIZE: Add signal versions of `size()` and `at()` in addition to `reduce()`:
+    const todoCount = new ReducedSignal(eq, (acc, _) => acc + 1, new ConstSignal(0), todos);
+    
     return el("footer", {"class": "footer"},
         el("span", {"class": "todo-count"},
             el("strong", {}, map(eq, str, todoCount)), " items left"),
         
         el("ul", {"class": "filters"},
-            todoFilter("All", "/", allIsSelected),
-            todoFilter("Active", "/active", new ConstSignal(false)),
-            todoFilter("Completed", "/completed", new ConstSignal(false))),
+            todoFilter("All", "/", allIsSelected), // TODO: Interaction
+            todoFilter("Active", "/active", new ConstSignal(false)), // TODO: Interaction
+            todoFilter("Completed", "/completed", new ConstSignal(false))), // TODO: Interaction
         
-        el("button", {"class": "clear-completed"}, "Clear completed"));
+        el("button", {"class": "clear-completed"}, "Clear completed")); // TODO: Interaction
 }
 
-function createUI(todoCount: Signal<number>): Element {
+function createUI(todos: SourceVecnal<Todo>): Element {
     return el("section", {"class": "todoapp"},
-        todosHeader(),
+        todosHeader(todos),
                          
-        todos(),
+        todoList(todos),
                 
-        todosFooter(todoCount));
+        todosFooter(todos));
 }
 
 (function (window) {
 	'use strict';
 
-	const ui = createUI(todoCount);
+	const ui = createUI(todos);
 	const body = document.body;
 	insertBefore(body, ui, body.children[0]);
 })(window);
