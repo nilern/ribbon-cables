@@ -1004,6 +1004,113 @@ class ReducedSignal<U, T> extends Signal<U> implements IndexedSubscriber<T> {
     onSubstitute(_: number, _1: T) { this.onChange(); }
 }
 
+class ViewVecnal<T> extends Vecnal<Signal<T>> implements IndexedSubscriber<T> {
+    private readonly signals: SourceSignal<T>[]; // OPTIMIZE: RRB vector
+    private readonly subscribers = new Set<IndexedSubscriber<Signal<T>>>();
+    
+    constructor(
+        private readonly input: Vecnal<T>
+    ) {
+        super();
+        
+        this.signals = [];
+        input.reduce((_, v) => { this.signals.push(new SourceSignal(eq, v)); }, /*HACK:*/ undefined as void);
+    }
+    
+    size(): number {
+        if (this.subscribers.size === 0) {
+            // If `this` has no subscribers it does not watch deps either so `this.signals` could be stale:
+            return this.input.size();
+            // OPTIMIZE: This combined with dep `size()` in ctor makes signal graph construction
+            // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
+            // would result from eagerly subscribing in ctor...
+        }
+        
+        return this.signals.length;
+    }
+    
+    at(i: number): Signal<T> {
+        if (this.subscribers.size === 0) {
+            // If `this` has no subscribers it does not watch deps either so `this.signals` could be stale:
+            const requiredLen = i + 1;
+            for (let j = this.signals.length; j < requiredLen; ++j) {
+                this.signals[j] = new SourceSignal(eq, this.input.at(j));
+            }
+            // OPTIMIZE: This combined with dep `at()`:s in ctor makes signal graph construction
+            // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
+            // would result from eagerly subscribing in ctor...
+        }
+        
+        return this.signals[i];
+    }
+    
+    reduce<V>(f: (acc: V, v: Signal<T>) => V, acc: V): V {
+        if (this.subscribers.size === 0) {
+            // If `this` has no subscribers it does not watch deps either so `this.signals` could be stale:
+            const requiredLen = this.input.size();
+            for (let j = this.signals.length; j < requiredLen; ++j) {
+                this.signals[j] = new SourceSignal(eq, this.input.at(j));
+            }
+            // OPTIMIZE: This combined with dep `at()`:s in ctor makes signal graph construction
+            // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
+            // would result from eagerly subscribing in ctor...
+        }
+        
+        return this.signals.reduce(f, acc);
+    }
+    
+    iSubscribe(subscriber: IndexedSubscriber<Signal<T>>) {
+        if (this.subscribers.size === 0) {
+            // To avoid space leaks and 'unused' updates to `this` only start watching dependencies
+            // when `this` gets its first watcher:
+            this.input.iSubscribe(this);
+        }
+        
+        this.subscribers.add(subscriber);
+    }
+    
+    iUnsubscribe(subscriber: IndexedSubscriber<Signal<T>>) {
+        this.subscribers.delete(subscriber);
+        
+        if (this.subscribers.size === 0) {
+            // Watcher count just became zero, but watchees still have pointers to `this` (via
+            // `depSubscriber`). Remove those to avoid space leaks and 'unused' updates to `this`:
+            this.input.iUnsubscribe(this);
+        }
+    }
+    
+    onInsert(i: number, v: T) {
+        const signal = new SourceSignal(eq, v);
+        this.signals.splice(i, 0, signal);
+        
+        this.notifyInsert(i, signal);
+    }
+    
+    onRemove(i: number) {
+        this.signals.splice(i, 1);
+        
+        this.notifyRemove(i);
+    }
+    
+    onSubstitute(i: number, v: T) {
+        this.signals[i].reset(v);
+    }
+    
+    notifySubstitute(i: number, v: Signal<T>, u: Signal<T>) { throw Error("Unreachable"); }
+    
+    notifyInsert(i: number, v: Signal<T>) { // TODO: DRY (wrt. e.g. `SourceVecnal`)
+        for (const subscriber of this.subscribers) {
+            subscriber.onInsert(i, v);
+        }
+    }
+    
+    notifyRemove(i: number) { // TODO: DRY (wrt. e.g. `SourceVecnal`)
+        for (const subscriber of this.subscribers) {
+            subscriber.onRemove(i);
+        }
+    }
+}
+
 // DOM
 // ===
 
@@ -1253,9 +1360,10 @@ function el(tagName: string, attrs: {[key: string]: AttributeValue}, ...children
 // ===
 
 class Todo {
-    public readonly isComplete = false;
-    
-    constructor(public readonly text: string) {}
+    constructor(
+        public readonly text: string,
+        public readonly isComplete = false
+    ) {}
 };
 
 const todos = new SourceVecnal<Todo>(eq, []); // Global for REPL testing
@@ -1279,16 +1387,23 @@ function todosHeader(todos: SourceVecnal<Todo>): Node {
                      "onkeydown": handleKey}));
 }
 
-// OPTIMIZE: Take a `Signal<Todo>` instead:
-function item({text, isComplete}: Todo): Node {
-    return el("li", {"class": isComplete ? "completed" : ""},
+function item(todoS: Signal<Todo>): Node {
+    const isCompleteS = map(eq, ({isComplete}: Todo) => isComplete, todoS);
+    const textS = map(eq, ({text}: Todo) => text, todoS);
+    
+    const classeS: Signal<string> =
+        map(eq, (isComplete) => isComplete ? "completed" : "", isCompleteS);
+    const checkedS: Signal<string | undefined> =
+        map(eq, (isComplete) => isComplete ? "true" : undefined, isCompleteS);
+
+    return el("li", {"class": classeS},
         el("div", {"class": "view"}, 
             el("input", {"class": "toggle",
                          "type": "checkbox",
-                         "checked": isComplete ? "true" : undefined}), // TODO: Interaction
-            el("label", {}, text),
+                         "checked": checkedS}), // TODO: Interaction
+            el("label", {}, textS),
             el("button", {"class": "destroy"})), // TODO: Interaction
-        el("input", {"class": "edit", "value": text})); // TODO: Interaction
+        el("input", {"class": "edit", "value": textS})); // TODO: Interaction
 }
 
 function todoList(todos: Vecnal<Todo>): Node {
@@ -1297,7 +1412,7 @@ function todoList(todos: Vecnal<Todo>): Node {
         el("label", {"for": "toggle-all"}, "Mark all as complete"),
         
         el("ul", {"class": "todo-list"},
-            new MappedVecnal(eq, item, todos)))
+            new MappedVecnal(eq, item, new ViewVecnal(todos))))
 }
 
 function todoFilter(label: string, path: string, isSelected: Signal<boolean>): Node {
