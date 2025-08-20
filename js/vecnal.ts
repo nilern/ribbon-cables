@@ -3,16 +3,16 @@ export type {
 };
 export {
     Vecnal,
-    ConstVecnal, SourceVecnal,
-    MappedVecnal, FilteredVecnal, ViewVecnal,
-    concat, lift,
-    ReducedSignal
+    stable, source,
+    view, concat, lift,
+    map, filter, reduce
 };
 
-import type {Sized, Indexed, Spliceable, Reducible} from "./prelude.js";
+import type {Reset, Sized, Indexed, Spliceable, Reducible} from "./prelude.js";
 import {eq} from "./prelude.js";
 import type {Subscriber} from "./signal.js";
-import {Signal, SourceSignal} from "./signal.js";
+import * as signal from "./signal.js";
+import {Signal} from "./signal.js";
 
 interface IndexedSubscriber<T> {
     onInsert: (i: number, v: T) => void;
@@ -76,6 +76,8 @@ class ConstVecnal<T> extends Vecnal<T> {
     
     notifySubstitute(_: number, _1: T) {}
 }
+
+function stable<T>(vs: T[]): Vecnal<T> { return new ConstVecnal(vs); }
 
 class SourceVecnal<T> extends Vecnal<T> implements Spliceable<T> {
     private readonly vs: T[]; // OPTIMIZE: RRB vector
@@ -149,6 +151,10 @@ class SourceVecnal<T> extends Vecnal<T> implements Spliceable<T> {
             subscriber.onRemove(i);
         }
     }
+}
+
+function source<T>(equals: (x: T, y: T) => boolean, initVals: T[]): Vecnal<T> & Spliceable<T> {
+    return new SourceVecnal(equals, initVals);
 }
 
 class MappedVecnal<U, T> extends Vecnal<U> implements IndexedSubscriber<T> {
@@ -275,6 +281,10 @@ class MappedVecnal<U, T> extends Vecnal<U> implements IndexedSubscriber<T> {
             subscriber.onRemove(i);
         }
     }
+}
+
+function map<T, U>(equals: (x: U, y: U) => boolean, f: (v: T) => U, collS: Vecnal<T>): Vecnal<U> {
+    return new MappedVecnal(equals, f, collS);
 }
 
 class FilteredVecnal<T> extends Vecnal<T> implements IndexedSubscriber<T> {
@@ -508,6 +518,10 @@ class FilteredVecnal<T> extends Vecnal<T> implements IndexedSubscriber<T> {
             subscriber.onRemove(i);
         }
     }
+}
+
+function filter<T>(f: (v: T) => boolean, collS: Vecnal<T>): Vecnal<T> {
+    return new FilteredVecnal(f, collS);
 }
 
 class ConcatVecnalDepSubscriber<T> implements IndexedSubscriber<T> {
@@ -821,8 +835,14 @@ class ReducedSignal<U, T> extends Signal<U> implements IndexedSubscriber<T> {
     onSubstitute(_: number, _1: T) { this.onChange(); }
 }
 
+function reduce<T, U>(equals: (x: U, y: U) => boolean, f: (acc: U, v: T) => U,
+    accS: Signal<U>, collS: Vecnal<T>
+): Signal<U> {
+    return new ReducedSignal(equals, f, accS, collS);
+}
+
 class ViewVecnal<T> extends Vecnal<Signal<T>> implements IndexedSubscriber<T> {
-    private readonly signals: SourceSignal<T>[]; // OPTIMIZE: RRB vector
+    private readonly signals: (Signal<T> & Reset<T>)[]; // OPTIMIZE: RRB vector
     private readonly subscribers = new Set<IndexedSubscriber<Signal<T>>>();
     
     constructor(
@@ -831,7 +851,8 @@ class ViewVecnal<T> extends Vecnal<Signal<T>> implements IndexedSubscriber<T> {
         super();
         
         this.signals = [];
-        input.reduce((_, v) => { this.signals.push(new SourceSignal(eq, v)); }, /*HACK:*/ undefined as void);
+        input.reduce((_, v) => { this.signals.push(signal.source(eq, v)); },
+            /*HACK:*/ undefined as void);
     }
     
     size(): number {
@@ -851,7 +872,7 @@ class ViewVecnal<T> extends Vecnal<Signal<T>> implements IndexedSubscriber<T> {
             // If `this` has no subscribers it does not watch deps either so `this.signals` could be stale:
             const requiredLen = i + 1;
             for (let j = this.signals.length; j < requiredLen; ++j) {
-                this.signals[j] = new SourceSignal(eq, this.input.at(j));
+                this.signals[j] = signal.source(eq, this.input.at(j));
             }
             // OPTIMIZE: This combined with dep `at()`:s in ctor makes signal graph construction
             // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
@@ -866,7 +887,7 @@ class ViewVecnal<T> extends Vecnal<Signal<T>> implements IndexedSubscriber<T> {
             // If `this` has no subscribers it does not watch deps either so `this.signals` could be stale:
             const requiredLen = this.input.size();
             for (let j = this.signals.length; j < requiredLen; ++j) {
-                this.signals[j] = new SourceSignal(eq, this.input.at(j));
+                this.signals[j] = signal.source(eq, this.input.at(j));
             }
             // OPTIMIZE: This combined with dep `at()`:s in ctor makes signal graph construction
             // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
@@ -897,10 +918,10 @@ class ViewVecnal<T> extends Vecnal<Signal<T>> implements IndexedSubscriber<T> {
     }
     
     onInsert(i: number, v: T) {
-        const signal = new SourceSignal(eq, v);
-        this.signals.splice(i, 0, signal);
+        const sig = signal.source(eq, v);
+        this.signals.splice(i, 0, sig);
         
-        this.notifyInsert(i, signal);
+        this.notifyInsert(i, sig);
     }
     
     onRemove(i: number) {
@@ -927,4 +948,6 @@ class ViewVecnal<T> extends Vecnal<Signal<T>> implements IndexedSubscriber<T> {
         }
     }
 }
+
+function view<T>(collS: Vecnal<T>): Vecnal<Signal<T>> { return new ViewVecnal(collS); }
 

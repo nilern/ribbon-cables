@@ -1,9 +1,11 @@
+import type {Spliceable} from "./prelude.js"
 import {eq, str} from "./prelude.js"
 import type {Signal} from "./signal.js"
-import {ConstSignal, SourceSignal, map} from "./signal.js"
+import * as signal from "./signal.js"
 import type {Vecnal} from "./vecnal.js"
-import {SourceVecnal, MappedVecnal, ViewVecnal, ReducedSignal} from "./vecnal.js"
-import {el, insertBefore} from "./dom.js"
+import * as vecnal from "./vecnal.js"
+import * as dom from "./dom.js"
+import {el} from "./dom.js"
 
 class Todo {
     constructor(
@@ -12,9 +14,9 @@ class Todo {
     ) {}
 };
 
-const todos = new SourceVecnal<Todo>(eq, []); // Global for REPL testing
+const todos = vecnal.source<Todo>(eq, []); // Global for REPL testing
 
-function todosHeader(todos: SourceVecnal<Todo>): Node {
+function todosHeader(todos: Vecnal<Todo> & Spliceable<Todo>): Node {
     function handleKey(e: Event) {
         const event = e as KeyboardEvent;
         if (event.key === "Enter") {
@@ -34,13 +36,13 @@ function todosHeader(todos: SourceVecnal<Todo>): Node {
 }
 
 function item(todoS: Signal<Todo>): Node {
-    const isCompleteS = map(eq, ({isComplete}: Todo) => isComplete, todoS);
-    const textS = map(eq, ({text}: Todo) => text, todoS);
+    const isCompleteS = signal.map(eq, ({isComplete}: Todo) => isComplete, todoS);
+    const textS = signal.map(eq, ({text}: Todo) => text, todoS);
     
     const classeS: Signal<string> =
-        map(eq, (isComplete) => isComplete ? "completed" : "", isCompleteS);
+        signal.map(eq, (isComplete) => isComplete ? "completed" : "", isCompleteS);
     const checkedS: Signal<string | undefined> =
-        map(eq, (isComplete) => isComplete ? "true" : undefined, isCompleteS);
+        signal.map(eq, (isComplete) => isComplete ? "true" : undefined, isCompleteS);
 
     return el("li", {"class": classeS},
         el("div", {"class": "view"}, 
@@ -58,36 +60,36 @@ function todoList(todos: Vecnal<Todo>): Node {
         el("label", {"for": "toggle-all"}, "Mark all as complete"),
         
         el("ul", {"class": "todo-list"},
-            new MappedVecnal(eq, item, new ViewVecnal(todos))))
+            vecnal.map(eq, item, vecnal.view(todos))))
 }
 
 function todoFilter(label: string, path: string, isSelected: Signal<boolean>): Node {
     return el("li", {},
-        el("a", {"class": map(eq, (isSelected) => isSelected ? "selected" : "",
+        el("a", {"class": signal.map(eq, (isSelected) => isSelected ? "selected" : "",
                     isSelected),
                  "href": `#${path}`},
              label));
 }
 
-const allIsSelected = new SourceSignal(eq, true);
+const allIsSelected = signal.source(eq, true);
 
 function todosFooter(todos: Vecnal<Todo>): Node {
     // OPTIMIZE: Add signal versions of `size()` and `at()` in addition to `reduce()`:
-    const todoCount = new ReducedSignal(eq, (acc, _) => acc + 1, new ConstSignal(0), todos);
+    const todoCount = vecnal.reduce(eq, (acc, _) => acc + 1, signal.stable(0), todos);
     
     return el("footer", {"class": "footer"},
         el("span", {"class": "todo-count"},
-            el("strong", {}, map(eq, str, todoCount)), " items left"),
+            el("strong", {}, signal.map(eq, str, todoCount)), " items left"),
         
         el("ul", {"class": "filters"},
             todoFilter("All", "/", allIsSelected), // TODO: Interaction
-            todoFilter("Active", "/active", new ConstSignal(false)), // TODO: Interaction
-            todoFilter("Completed", "/completed", new ConstSignal(false))), // TODO: Interaction
+            todoFilter("Active", "/active", signal.stable(false)), // TODO: Interaction
+            todoFilter("Completed", "/completed", signal.stable(false))), // TODO: Interaction
         
         el("button", {"class": "clear-completed"}, "Clear completed")); // TODO: Interaction
 }
 
-function createUI(todos: SourceVecnal<Todo>): Element {
+function createUI(todos: Vecnal<Todo> & Spliceable<Todo>): Element {
     return el("section", {"class": "todoapp"},
         todosHeader(todos),
                          
@@ -101,6 +103,6 @@ function createUI(todos: SourceVecnal<Todo>): Element {
 
 	const ui = createUI(todos);
 	const body = document.body;
-	insertBefore(body, ui, body.children[0]);
+	dom.insertBefore(body, ui, body.children[0]);
 })(window);
 

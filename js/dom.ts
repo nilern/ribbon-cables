@@ -1,8 +1,10 @@
 import {eq} from "./prelude.js";
 import type {Observable, Subscriber} from "./signal.js";
-import {Signal, map} from "./signal.js";
+import * as signal from "./signal.js";
+import {Signal} from "./signal.js";
 import type {IndexedObservable, IndexedSubscriber} from "./vecnal.js";
-import {Vecnal, ConstVecnal, MappedVecnal, concat, lift} from "./vecnal.js";
+import * as vecnal from "./vecnal.js";
+import {Vecnal} from "./vecnal.js";
 
 type EventHandler = (event: Event) => void;
 
@@ -17,21 +19,21 @@ interface MountableNode {
     __vcnMultiWatchees?: MultiWatchees
 }
 
-function addWatchee<T>(node: MountableNode, signal: Signal<T>, subscriber: Subscriber<T>) {
+function addWatchee<T>(node: MountableNode, valS: Signal<T>, subscriber: Subscriber<T>) {
     if (!node.__vcnWatchees) { node.__vcnWatchees = new Map(); }
     
-    const subscribers = node.__vcnWatchees.get(signal);
+    const subscribers = node.__vcnWatchees.get(valS);
     if (subscribers) {
         subscribers.add(subscriber);
     } else {
-        node.__vcnWatchees.set(signal, new Set([subscriber]));
+        node.__vcnWatchees.set(valS, new Set([subscriber]));
     }
 }
 
-function removeWatchee<T>(node: MountableNode, signal: Signal<T>, subscriber: Subscriber<T>) {
+function removeWatchee<T>(node: MountableNode, valS: Signal<T>, subscriber: Subscriber<T>) {
     if (!node.__vcnWatchees) { node.__vcnWatchees = new Map(); }
     
-    const subscribers = node.__vcnWatchees.get(signal);
+    const subscribers = node.__vcnWatchees.get(valS);
     if (subscribers) {
         subscribers.delete(subscriber);
     } else {
@@ -39,25 +41,25 @@ function removeWatchee<T>(node: MountableNode, signal: Signal<T>, subscriber: Su
     }
 }
 
-function addMultiWatchee<T>(node: MountableNode, vecnal: Vecnal<T>,
+function addMultiWatchee<T>(node: MountableNode, collS: Vecnal<T>,
     subscriber: IndexedSubscriber<T>
 ) {
     if (!node.__vcnMultiWatchees) { node.__vcnMultiWatchees = new Map(); }
     
-    const subscribers = node.__vcnMultiWatchees.get(vecnal);
+    const subscribers = node.__vcnMultiWatchees.get(collS);
     if (subscribers) {
         subscribers.add(subscriber);
     } else {
-        node.__vcnMultiWatchees.set(vecnal, new Set([subscriber]));
+        node.__vcnMultiWatchees.set(collS, new Set([subscriber]));
     }
 }
 
-function removeMultiWatchee<T>(node: MountableNode, vecnal: Vecnal<T>,
+function removeMultiWatchee<T>(node: MountableNode, collS: Vecnal<T>,
     subscriber: IndexedSubscriber<T>
 ) {
     if (!node.__vcnMultiWatchees) { node.__vcnMultiWatchees = new Map(); }
     
-    const subscribers = node.__vcnMultiWatchees.get(vecnal);
+    const subscribers = node.__vcnMultiWatchees.get(collS);
     if (subscribers) {
         subscribers.delete(subscriber);
     } else {
@@ -67,17 +69,17 @@ function removeMultiWatchee<T>(node: MountableNode, vecnal: Vecnal<T>,
 
 function activateSink(node: MountableNode) {
     if (node.__vcnWatchees) {
-        for (const [signal, subscribers] of node.__vcnWatchees) {
+        for (const [valS, subscribers] of node.__vcnWatchees) {
             for (const subscriber of subscribers) {
-                signal.subscribe(subscriber as Subscriber<any>);
+                valS.subscribe(subscriber as Subscriber<any>);
             }
         }
     }
         
     if (node.__vcnMultiWatchees) {
-        for (const [signal, subscribers] of node.__vcnMultiWatchees) {
+        for (const [collS, subscribers] of node.__vcnMultiWatchees) {
             for (const subscriber of subscribers) {
-                signal.iSubscribe(subscriber as IndexedSubscriber<any>);
+                collS.iSubscribe(subscriber as IndexedSubscriber<any>);
             }
         }
     }
@@ -85,17 +87,17 @@ function activateSink(node: MountableNode) {
 
 function deactivateSink(node: MountableNode) {
     if (node.__vcnWatchees) {
-        for (const [signal, subscribers] of node.__vcnWatchees) {
+        for (const [valS, subscribers] of node.__vcnWatchees) {
             for (const subscriber of subscribers) {
-                signal.unsubscribe(subscriber as Subscriber<any>);
+                valS.unsubscribe(subscriber as Subscriber<any>);
             }
         }
     }
         
     if (node.__vcnMultiWatchees) {
-        for (const [signal, subscribers] of node.__vcnMultiWatchees) {
+        for (const [collS, subscribers] of node.__vcnMultiWatchees) {
             for (const subscriber of subscribers) {
-                signal.iUnsubscribe(subscriber as IndexedSubscriber<any>);
+                collS.iUnsubscribe(subscriber as IndexedSubscriber<any>);
             }
         }
     }
@@ -197,13 +199,13 @@ function childValueToNode(child: ChildValue): Node {
 
 function childToVecnal(child: Child): Vecnal<Node> {
     if (child instanceof Vecnal) {
-        return new MappedVecnal(eq, childValueToNode, child);
+        return vecnal.map(eq, childValueToNode, child);
     } else if (child instanceof Signal) {
-        return lift(map(eq, childValueToNode, child));
+        return vecnal.lift(signal.map(eq, childValueToNode, child));
     } else if (Array.isArray(child)) {
-        return new ConstVecnal(child.map(childValueToNode));
+        return vecnal.stable(child.map(childValueToNode));
     } else {
-        return new ConstVecnal([childValueToNode(child)]);
+        return vecnal.stable([childValueToNode(child)]);
     }
 }
 
@@ -236,7 +238,8 @@ export function el(tagName: string, attrs: {[key: string]: AttributeValue}, ...c
     
     {
         // Need to cast from `Vecnal<unknown>` because `apply` is so weakly typed:
-        const childrenVecnal = concat.apply(undefined, children.map(childToVecnal)) as Vecnal<Node>;
+        const childrenVecnal =
+            vecnal.concat.apply(undefined, children.map(childToVecnal)) as Vecnal<Node>;
         
         childrenVecnal.reduce((_, child) => node.appendChild(child), /*HACK:*/ undefined as void);
         

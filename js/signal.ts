@@ -3,7 +3,7 @@ export type {
 };
 export {
     Signal,
-    ConstSignal, SourceSignal,
+    stable, source,
     map
 };
 
@@ -45,6 +45,8 @@ class ConstSignal<T> extends Signal<T> {
     notify(v: T, u: T) {}
 }
 
+function stable<T>(v: T): Signal<T> { return new ConstSignal(v); }
+
 class SourceSignal<T> extends Signal<T> implements Reset<T> {
     private readonly subscribers = new Set<Subscriber<T>>();
     
@@ -81,6 +83,10 @@ class SourceSignal<T> extends Signal<T> implements Reset<T> {
             }
         }
     }
+}
+
+function source<T>(equals: (x: T, y: T) => boolean, initVal: T): Signal<T> & Reset<T> {
+    return new SourceSignal(equals, initVal);
 }
 
 class MappedSignal<U, T extends Signal<any>[]> extends Signal<U> {
