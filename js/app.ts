@@ -1,15 +1,7 @@
 import type {Deref, Sized, Indexed, Reducible, Reset, Spliceable} from "./prelude.js";
 import {str, eq} from "./prelude.js";
-
-type Subscriber<T> = (v: T, u: T) => void;
-
-interface Observable<T> {
-    subscribe: (subscriber: Subscriber<T>) => void;
-    
-    unsubscribe: (subscriber: Subscriber<T>) => void;
-    
-    notify: (/* TODO: Remove this param if possible: */ oldVal: T, newVal: T) => void;
-}
+import type {Observable, Subscriber} from "./signal.js"
+import {Signal, ConstSignal, SourceSignal, map} from "./signal.js"
 
 interface IndexedSubscriber<T> {
     onInsert: (i: number, v: T) => void;
@@ -29,16 +21,6 @@ interface IndexedObservable<T> {
     notifySubstitute: (i: number, /* TODO: Remove this param if possible: */ v: T, u: T) => void;
 }
 
-interface ISignal<T> extends Deref<T>, Observable<T> {}
-
-abstract class Signal<T> implements ISignal<T> {
-    abstract ref(): T;
-    
-    abstract subscribe(subscriber: Subscriber<T>): void;
-    abstract unsubscribe(subscriber: Subscriber<T>): void;
-    abstract notify(v: T, u: T): void;
-}
-
 // TODO: Ribbon cable -inspired name:
 interface IVecnal<T> extends Indexed<T>, Sized, Reducible<T>, IndexedObservable<T> {}
 
@@ -54,22 +36,6 @@ abstract class Vecnal<T> implements IVecnal<T> {
     abstract notifyInsert(i: number, v: T): void;
     abstract notifyRemove(i: number): void;
     abstract notifySubstitute(i: number, v: T, u: T): void;
-}
-
-class ConstSignal<T> extends Signal<T> {
-    constructor(
-        private readonly v: T
-    ) {
-        super();
-    }
-    
-    ref(): T { return this.v; }
-    
-    subscribe(_: Subscriber<T>) {}
-    
-    unsubscribe(_: Subscriber<T>) {}
-    
-    notify(v: T, u: T) {}
 }
 
 class ConstVecnal<T> extends Vecnal<T> {
@@ -98,44 +64,6 @@ class ConstVecnal<T> extends Vecnal<T> {
     notifyRemove(_: number) {}
     
     notifySubstitute(_: number, _1: T) {}
-}
-
-class SourceSignal<T> extends Signal<T> implements Reset<T> {
-    private readonly subscribers = new Set<Subscriber<T>>();
-    
-    constructor(
-        private readonly equals: (x: T, y: T) => boolean,
-        private v: T
-    ) {
-        super();
-    }
-    
-    ref(): T { return this.v; }
-    
-    reset(v: T): T {
-        const old = this.v;
-        this.v = v;
-        
-        this.notify(old, v);
-        
-        return v;
-    }
-    
-    subscribe(subscriber: Subscriber<T>) {
-        this.subscribers.add(subscriber);
-    }
-    
-    unsubscribe(subscriber: Subscriber<T>) {
-        this.subscribers.delete(subscriber);
-    }
-    
-    notify(v: T, u: T) {
-        if (!this.equals(v, u)) {
-            for (const subscriber of this.subscribers) {
-                subscriber(v, u);
-            }
-        }
-    }
 }
 
 class SourceVecnal<T> extends Vecnal<T> implements Spliceable<T> {
@@ -210,96 +138,6 @@ class SourceVecnal<T> extends Vecnal<T> implements Spliceable<T> {
             subscriber.onRemove(i);
         }
     }
-}
-
-class MappedSignal<U, T extends Signal<any>[]> extends Signal<U> {
-    private readonly subscribers = new Set<Subscriber<U>>();
-    private readonly deps: T;
-    private readonly depSubscribers: Subscriber<any>[] = [];
-    private v: U;
-    
-    constructor(
-        private readonly equals: (x: U, y: U) => boolean,
-        private readonly f: (...depVals: any[]) => U,
-        ...deps: T
-    ) {
-        super();
-        
-        this.deps = deps;
-        
-        for (const dep of deps) {
-            this.depSubscribers.push((_: any, _1: any) => {
-                const oldVal = this.v;
-                const newVal = this.f.apply(undefined, this.deps.map((dep) => dep.ref()));
-                this.v = newVal;
-                this.notify(oldVal, newVal);
-            })
-        }
-    
-        this.v = f.apply(undefined, deps.map((dep) => dep.ref()));
-    }
-    
-    ref(): U {
-        if (this.subscribers.size === 0) {
-            // If `this` has no subscribers it does not watch deps either so `this.v` could be stale:
-            this.v = this.f.apply(undefined, this.deps.map((dep) => dep.ref()));
-            // OPTIMIZE: This combined with dep `ref()`:s in ctor makes signal graph construction
-            // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
-            // would result from eagerly subscribing in ctor...
-        }
-        
-        return this.v;
-    }
-    
-    subscribe(subscriber: Subscriber<U>) {
-        if (this.subscribers.size === 0) {
-            // To avoid space leaks and 'unused' updates to `this` only start watching dependencies
-            // when `this` gets its first watcher:
-            for (let i = 0; i < this.deps.length; ++i) {
-                this.deps[i].subscribe(this.depSubscribers[i]);
-            }
-        }
-        
-        this.subscribers.add(subscriber);
-    }
-    
-    unsubscribe(subscriber: Subscriber<U>) {
-        this.subscribers.delete(subscriber);
-        
-        if (this.subscribers.size === 0) {
-            // Watcher count just became zero, but watchees still have pointers to `this` (via
-            // `depSubscriber`). Remove those to avoid space leaks and 'unused' updates to `this`:
-            for (let i = 0; i < this.deps.length; ++i) {
-                this.deps[i].unsubscribe(this.depSubscribers[i]);
-            }
-        }
-    }
-    
-    notify(v: U, u: U) { // TODO: DRY wrt. `SourceSignal::notify`
-        if (!this.equals(v, u)) {
-            for (const subscriber of this.subscribers) {
-                subscriber(v, u);
-            }
-        }
-    }
-}
-
-// Type safe wrappers for `MappedSignal` creation:
-
-// TODO: Make into methods of `Signal`:
-
-function map<R, T>(equals: (x: R, y: R) => boolean, f: (x: T) => R, s: Signal<T>): Signal<R> {
-    const g = f as (...xs: any[]) => R; // SAFETY: `xs` are `[s].map((x) => x.ref())`
-    
-    return new MappedSignal(equals, g, s);
-}
-
-function map2<R, T, U>(equals: (x: R, y: R) => boolean, f: (x: T, y: U) => R,
-    s1: Signal<T>, s2: Signal<U>
-): Signal<R> {
-    const g = f as (...xs: any[]) => R; // SAFETY: `xs` are `[s1, s2].map((x) => x.ref())`
-    
-    return new MappedSignal(equals, g, s1, s2);
 }
 
 class MappedVecnal<U, T> extends Vecnal<U> implements IndexedSubscriber<T> {
