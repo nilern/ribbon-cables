@@ -1,3 +1,12 @@
+export type {
+    AttributeString, AttributeValue,
+    ChildValue, Child
+};
+export {
+    el,
+    insertBefore, removeChild, replaceChild
+};
+
 import {eq} from "./prelude.js";
 import type {Observable, Subscriber} from "./signal.js";
 import * as signal from "./signal.js";
@@ -127,7 +136,7 @@ function unmount(el: Node) {
     (el as unknown as MountableNode).__vcnDetached = true;
 }
 
-export function insertBefore(parent: Element, child: Node, successor: Node) {
+function insertBefore(parent: Element, child: Node, successor: Node) {
     parent.insertBefore(child, successor);
     if (isMounted(parent)) {
         mount(child);
@@ -135,14 +144,14 @@ export function insertBefore(parent: Element, child: Node, successor: Node) {
     }
 }
 
-export function removeChild(parent: Element, child: Node) {
+function removeChild(parent: Element, child: Node) {
     parent.removeChild(child);
     if (isMounted(parent)) {
         unmount(child);
     }
 }
 
-export function replaceChild(parent: Element, child: Node, oldChild: Node) {
+function replaceChild(parent: Element, child: Node, oldChild: Node) {
     parent.replaceChild(child, oldChild);
     if (isMounted(parent)) {
         unmount(oldChild);
@@ -228,7 +237,7 @@ class Nanny implements IndexedSubscriber<Node> {
     }
 }
 
-export function el(tagName: string, attrs: {[key: string]: AttributeValue}, ...children: Child[]): Element {
+function el(tagName: string, attrs: {[key: string]: AttributeValue}, ...children: Child[]): Element {
     const node = document.createElement(tagName);
     (node as unknown as MountableNode).__vcnDetached = true;
     
