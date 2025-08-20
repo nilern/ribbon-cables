@@ -1,16 +1,27 @@
-import type {Sized, Indexed, Spliceable, Reducible} from "./prelude.js"
-import {eq} from "./prelude.js"
-import type {Subscriber} from "./signal.js"
-import {Signal, SourceSignal} from "./signal.js"
+export type {
+    IndexedObservable, IndexedSubscriber
+};
+export {
+    Vecnal,
+    ConstVecnal, SourceVecnal,
+    MappedVecnal, FilteredVecnal, ViewVecnal,
+    concat, lift,
+    ReducedSignal
+};
 
-export interface IndexedSubscriber<T> {
+import type {Sized, Indexed, Spliceable, Reducible} from "./prelude.js";
+import {eq} from "./prelude.js";
+import type {Subscriber} from "./signal.js";
+import {Signal, SourceSignal} from "./signal.js";
+
+interface IndexedSubscriber<T> {
     onInsert: (i: number, v: T) => void;
     onRemove: (i: number) => void;
     // TODO: onMove: (i: number, j: number) => void;
     onSubstitute: (i: number, v: T) => void;
 }
 
-export interface IndexedObservable<T> {
+interface IndexedObservable<T> {
     iSubscribe: (subscriber: IndexedSubscriber<T>) => void;
     
     iUnsubscribe: (subscriber: IndexedSubscriber<T>) => void;
@@ -24,7 +35,7 @@ export interface IndexedObservable<T> {
 // TODO: Ribbon cable -inspired name:
 interface IVecnal<T> extends Indexed<T>, Sized, Reducible<T>, IndexedObservable<T> {}
 
-export abstract class Vecnal<T> implements IVecnal<T> {
+abstract class Vecnal<T> implements IVecnal<T> {
     abstract size(): number;
     
     abstract at(i: number): T;
@@ -38,7 +49,7 @@ export abstract class Vecnal<T> implements IVecnal<T> {
     abstract notifySubstitute(i: number, v: T, u: T): void;
 }
 
-export class ConstVecnal<T> extends Vecnal<T> {
+class ConstVecnal<T> extends Vecnal<T> {
     private readonly vs: T[]; // TODO: Immutable vector
     
     constructor(
@@ -66,7 +77,7 @@ export class ConstVecnal<T> extends Vecnal<T> {
     notifySubstitute(_: number, _1: T) {}
 }
 
-export class SourceVecnal<T> extends Vecnal<T> implements Spliceable<T> {
+class SourceVecnal<T> extends Vecnal<T> implements Spliceable<T> {
     private readonly vs: T[]; // OPTIMIZE: RRB vector
     private readonly subscribers = new Set<IndexedSubscriber<T>>();
     
@@ -140,7 +151,7 @@ export class SourceVecnal<T> extends Vecnal<T> implements Spliceable<T> {
     }
 }
 
-export class MappedVecnal<U, T> extends Vecnal<U> implements IndexedSubscriber<T> {
+class MappedVecnal<U, T> extends Vecnal<U> implements IndexedSubscriber<T> {
     private readonly vs: U[]; // OPTIMIZE: RRB vector
     private readonly subscribers = new Set<IndexedSubscriber<U>>();
 
@@ -266,7 +277,7 @@ export class MappedVecnal<U, T> extends Vecnal<U> implements IndexedSubscriber<T
     }
 }
 
-export class FilteredVecnal<T> extends Vecnal<T> implements IndexedSubscriber<T> {
+class FilteredVecnal<T> extends Vecnal<T> implements IndexedSubscriber<T> {
     // C style non-index should make `indexMapping` an array of 32-bit ints at runtime:
     private static readonly NO_INDEX = -1;
 
@@ -669,8 +680,7 @@ class ConcatVecnal<T> extends Vecnal<T> {
     }
 }
 
-// We will export just this instead of the `ConcatVecnal` class:
-export function concat<T>(...vecnals: Vecnal<T>[]): Vecnal<T> { return new ConcatVecnal(vecnals); }
+function concat<T>(...vecnals: Vecnal<T>[]): Vecnal<T> { return new ConcatVecnal(vecnals); }
 
 class SingleElementVecnal<T> extends Vecnal<T> {
     private v: T;
@@ -731,9 +741,9 @@ class SingleElementVecnal<T> extends Vecnal<T> {
     notifyRemove(i: number) { throw Error("Unreachable"); }
 }
 
-export function lift<T>(signal: Signal<T>): Vecnal<T> { return new SingleElementVecnal(signal); }
+function lift<T>(signal: Signal<T>): Vecnal<T> { return new SingleElementVecnal(signal); }
 
-export class ReducedSignal<U, T> extends Signal<U> implements IndexedSubscriber<T> {
+class ReducedSignal<U, T> extends Signal<U> implements IndexedSubscriber<T> {
     private v: U;
     private readonly subscribers = new Set<Subscriber<U>>();
     private readonly depSubscriber: Subscriber<U>;
@@ -811,7 +821,7 @@ export class ReducedSignal<U, T> extends Signal<U> implements IndexedSubscriber<
     onSubstitute(_: number, _1: T) { this.onChange(); }
 }
 
-export class ViewVecnal<T> extends Vecnal<Signal<T>> implements IndexedSubscriber<T> {
+class ViewVecnal<T> extends Vecnal<Signal<T>> implements IndexedSubscriber<T> {
     private readonly signals: SourceSignal<T>[]; // OPTIMIZE: RRB vector
     private readonly subscribers = new Set<IndexedSubscriber<Signal<T>>>();
     

@@ -1,8 +1,8 @@
-import {eq} from "./prelude.js"
-import type {Observable, Subscriber} from "./signal.js"
-import {Signal, map} from "./signal.js"
-import type {IndexedObservable, IndexedSubscriber} from "./vecnal.js"
-import {Vecnal, ConstVecnal, MappedVecnal, concat, lift} from "./vecnal.js"
+import {eq} from "./prelude.js";
+import type {Observable, Subscriber} from "./signal.js";
+import {Signal, map} from "./signal.js";
+import type {IndexedObservable, IndexedSubscriber} from "./vecnal.js";
+import {Vecnal, ConstVecnal, MappedVecnal, concat, lift} from "./vecnal.js";
 
 type EventHandler = (event: Event) => void;
 

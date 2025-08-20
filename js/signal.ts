@@ -1,8 +1,17 @@
-import type {Deref, Reset} from "./prelude.js"
+export type {
+    Observable, Subscriber  
+};
+export {
+    Signal,
+    ConstSignal, SourceSignal,
+    map
+};
 
-export type Subscriber<T> = (v: T, u: T) => void;
+import type {Deref, Reset} from "./prelude.js";
 
-export interface Observable<T> {
+type Subscriber<T> = (v: T, u: T) => void;
+
+interface Observable<T> {
     subscribe: (subscriber: Subscriber<T>) => void;
     
     unsubscribe: (subscriber: Subscriber<T>) => void;
@@ -12,7 +21,7 @@ export interface Observable<T> {
 
 interface ISignal<T> extends Deref<T>, Observable<T> {}
 
-export abstract class Signal<T> implements ISignal<T> {
+abstract class Signal<T> implements ISignal<T> {
     abstract ref(): T;
     
     abstract subscribe(subscriber: Subscriber<T>): void;
@@ -20,7 +29,7 @@ export abstract class Signal<T> implements ISignal<T> {
     abstract notify(v: T, u: T): void;
 }
 
-export class ConstSignal<T> extends Signal<T> {
+class ConstSignal<T> extends Signal<T> {
     constructor(
         private readonly v: T
     ) {
@@ -36,7 +45,7 @@ export class ConstSignal<T> extends Signal<T> {
     notify(v: T, u: T) {}
 }
 
-export class SourceSignal<T> extends Signal<T> implements Reset<T> {
+class SourceSignal<T> extends Signal<T> implements Reset<T> {
     private readonly subscribers = new Set<Subscriber<T>>();
     
     constructor(
@@ -74,7 +83,7 @@ export class SourceSignal<T> extends Signal<T> implements Reset<T> {
     }
 }
 
-export class MappedSignal<U, T extends Signal<any>[]> extends Signal<U> {
+class MappedSignal<U, T extends Signal<any>[]> extends Signal<U> {
     private readonly subscribers = new Set<Subscriber<U>>();
     private readonly deps: T;
     private readonly depSubscribers: Subscriber<any>[] = [];
@@ -150,13 +159,13 @@ export class MappedSignal<U, T extends Signal<any>[]> extends Signal<U> {
 
 // TODO: Make into methods of `Signal`:
 
-export function map<R, T>(equals: (x: R, y: R) => boolean, f: (x: T) => R, s: Signal<T>): Signal<R> {
+function map<R, T>(equals: (x: R, y: R) => boolean, f: (x: T) => R, s: Signal<T>): Signal<R> {
     const g = f as (...xs: any[]) => R; // SAFETY: `xs` are `[s].map((x) => x.ref())`
     
     return new MappedSignal(equals, g, s);
 }
 
-export function map2<R, T, U>(equals: (x: R, y: R) => boolean, f: (x: T, y: U) => R,
+function map2<R, T, U>(equals: (x: R, y: R) => boolean, f: (x: T, y: U) => R,
     s1: Signal<T>, s2: Signal<U>
 ): Signal<R> {
     const g = f as (...xs: any[]) => R; // SAFETY: `xs` are `[s1, s2].map((x) => x.ref())`
