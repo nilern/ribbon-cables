@@ -1,10 +1,12 @@
 .PHONY: all
-all: js/app.js
-
-js/app.js: js/app.ts
+all:
 	tsc
 
 .PHONY: clean
 clean:
 	rm js/*.js
+
+.PHONY: serve
+serve:
+	python3 -m http.server 8000
 
