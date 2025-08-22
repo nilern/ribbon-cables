@@ -1,11 +1,11 @@
-import type {Spliceable} from "./prelude.js"
-import {eq, str} from "./prelude.js"
-import type {Signal} from "./signal.js"
-import * as signal from "./signal.js"
-import type {Vecnal} from "./vecnal.js"
-import * as vecnal from "./vecnal.js"
-import * as dom from "./dom.js"
-import {el} from "./dom.js"
+import type {Spliceable} from "./prelude.js";
+import {eq, str} from "./prelude.js";
+import type {Signal} from "./signal.js";
+import * as signal from "./signal.js";
+import type {Vecnal} from "./vecnal.js";
+import * as vecnal from "./vecnal.js";
+import * as dom from "./dom.js";
+import {el} from "./dom.js";
 
 class Todo {
     constructor(
