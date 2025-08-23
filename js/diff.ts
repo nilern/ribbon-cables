@@ -11,17 +11,15 @@ import {Sized, Indexed} from "./prelude.js";
 // EUGENE W. MYERS: An O(ND) Difference Algorithm and Its Variations
 // 4b. A Linear Space Refinement
 
-class Edit {
+class Insert {
     constructor(public readonly index: number) {}
 }
 
-class Delete extends Edit {
-    constructor(index: number) { super(index); }
+class Delete {
+    constructor(public readonly index: number) {}
 }
 
-class Insert extends Edit {
-    constructor(index: number) { super(index); }
-}
+type Edit = Insert | Delete;
 
 type EditScript = Edit[];
 

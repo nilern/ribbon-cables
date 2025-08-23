@@ -1,4 +1,6 @@
-import type {Spliceable} from "./prelude.js";
+export {todos};
+
+import type {Reset} from "./prelude.js";
 import {eq, str} from "./prelude.js";
 import type {Signal} from "./signal.js";
 import * as signal from "./signal.js";
@@ -14,14 +16,15 @@ class Todo {
     ) {}
 };
 
-const todos = vecnal.source<Todo>(eq, []); // Global for REPL testing
+const todos = signal.source<Todo[]>(eq, []); // Global for REPL testing
 
-function todosHeader(todos: Vecnal<Todo> & Spliceable<Todo>): Node {
+// TODO: Encapsulate adding to `todos`:
+function todosHeader(todos: Signal<Todo[]> & Reset<Todo[]>): Node {
     function handleKey(e: Event) {
         const event = e as KeyboardEvent;
         if (event.key === "Enter") {
             const input = event.target as HTMLInputElement;
-            todos.insert(todos.size(), new Todo(input.value.trim())); // TODO: Add `todos.push()`
+            todos.reset([...todos.ref(), new Todo(input.value.trim())]);
             input.value = "";
         }
     }
@@ -89,13 +92,16 @@ function todosFooter(todos: Vecnal<Todo>): Node {
         el("button", {"class": "clear-completed"}, "Clear completed")); // TODO: Interaction
 }
 
-function createUI(todos: Vecnal<Todo> & Spliceable<Todo>): Element {
+// TODO: Encapsulate adding to `todos`:
+function createUI(todos: Signal<Todo[]> & Reset<Todo[]>): Element {
+    const todoZ = vecnal.imux(eq, todos);
+    
     return el("section", {"class": "todoapp"},
         todosHeader(todos),
                          
-        todoList(todos),
+        todoList(todoZ),
                 
-        todosFooter(todos));
+        todosFooter(todoZ));
 }
 
 (function (window) {

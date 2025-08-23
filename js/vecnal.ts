@@ -4,13 +4,14 @@ export type {
 export {
     Vecnal,
     stable, source,
-    mux, lift,
+    mux, imux, lift,
     view, concat,
     map, filter, reduce
 };
 
 import type {Reset, Sized, Indexed, Spliceable, Reducible} from "./prelude.js";
-import {eq} from "./prelude.js";
+import {ImmArrayAdapter, eq} from "./prelude.js";
+import * as diff from "./diff.js"
 import type {Subscriber} from "./signal.js";
 import * as signal from "./signal.js";
 import {Signal} from "./signal.js";
@@ -976,4 +977,117 @@ class ViewVecnal<T> extends Vecnal<Signal<T>> implements IndexedSubscriber<T> {
 }
 
 function view<T>(collS: Vecnal<T>): Vecnal<Signal<T>> { return new ViewVecnal(collS); }
+
+class ImuxVecnal<T> extends Vecnal<T> {
+    private readonly subscribers = new Set<IndexedSubscriber<T>>();
+    private readonly vs: T[];
+    private readonly inputSubscriber: Subscriber<T[]>;
+    
+    constructor(
+        private readonly equals: (x: T, y: T) => boolean,
+        private readonly input: Signal<T[]>
+    ) {
+        super();
+        
+        this.vs = input.ref();
+        
+        this.inputSubscriber = (oldVs, newVs) => {
+            const edits = diff.diff(new ImmArrayAdapter(oldVs), new ImmArrayAdapter(newVs), this.equals);
+            for (const edit of edits) {
+                // OPTIMIZE: Emit substitutions:
+                if (edit instanceof diff.Insert) {
+                    const i = edit.index;
+                    const v = newVs[edit.index];
+                    this.vs.splice(i, 0, v);
+                    this.notifyInsert(i, v);
+                } else if (edit instanceof diff.Delete) {
+                    const i = edit.index;
+                    this.vs.splice(i, 1);
+                    this.notifyRemove(i);
+                } else {
+                    const _exhaust: never = edit;
+                }
+            }
+        };
+    }
+    
+    size(): number {
+        if (this.subscribers.size > 0) {
+            return this.vs.length;
+        } else {
+            // If `this` has no subscribers it does not watch deps either so `this.vs` could be stale:
+            return this.input.ref().length;
+            // OPTIMIZE: This combined with dep `reduce()`:s in ctor makes signal graph construction
+            // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
+            // would result from eagerly subscribing in ctor...
+        }
+    }
+    
+    at(index: number): T {
+        if (this.subscribers.size > 0) {
+            return this.vs[index];
+        } else {
+            // If `this` has no subscribers it does not watch deps either so `this.vs` could be stale:
+            return this.input.ref()[index];
+            // OPTIMIZE: This combined with dep `reduce()`:s in ctor makes signal graph construction
+            // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
+            // would result from eagerly subscribing in ctor...
+        }
+    }
+    
+    reduce<U>(f: (acc: U, v: T) => U, acc: U): U {
+        if (this.subscribers.size > 0) {
+            return this.vs.reduce(f, acc);
+        } else {
+            // If `this` has no subscribers it does not watch deps either so `this.vs` could be stale:
+            return this.input.ref().reduce(f, acc);
+            // OPTIMIZE: This combined with dep `reduce()`:s in ctor makes signal graph construction
+            // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
+            // would result from eagerly subscribing in ctor...
+        }
+    }
+    
+    iSubscribe(subscriber: IndexedSubscriber<T>) {
+        if (this.subscribers.size === 0) {
+            // To avoid space leaks and 'unused' updates to `this` only start watching dependencies
+            // when `this` gets its first watcher:
+            this.input.subscribe(this.inputSubscriber);
+        }
+        
+        this.subscribers.add(subscriber);
+    }
+    
+    iUnsubscribe(subscriber: IndexedSubscriber<T>) {
+        this.subscribers.delete(subscriber);
+        
+        if (this.subscribers.size === 0) {
+            // Watcher count just became zero, but watchees still have pointers to `this` (via
+            // `depSubscriber`). Remove those to avoid space leaks and 'unused' updates to `this`:
+            this.input.unsubscribe(this.inputSubscriber);
+        }
+    }
+    
+    notifySubstitute(i: number, v: T, u: T) { // TODO: DRY (wrt. e.g. `FilteredVecnal`)
+        // No `this.equals` check; the diffing already took care of that.:
+        for (const subscriber of this.subscribers) {
+            subscriber.onSubstitute(i, u);
+        }
+    }
+    
+    notifyInsert(i: number, v: T) { // TODO: DRY (wrt. e.g. `SourceVecnal`)
+        for (const subscriber of this.subscribers) {
+            subscriber.onInsert(i, v);
+        }
+    }
+    
+    notifyRemove(i: number) { // TODO: DRY (wrt. e.g. `SourceVecnal`)
+        for (const subscriber of this.subscribers) {
+            subscriber.onRemove(i);
+        }
+    }
+}
+
+function imux<T>(equals: (x: T, y: T) => boolean, input: Signal<T[]>): Vecnal<T> {
+    return new ImuxVecnal(equals, input);
+}
 

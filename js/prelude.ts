@@ -3,7 +3,7 @@ export type {
     Sized, Indexed, IndexedMut, Spliceable,
     Reducible
 };
-export {eq, str};
+export {ImmArrayAdapter, eq, str};
 
 interface Deref<T> {
     ref: () => T;
@@ -33,6 +33,16 @@ interface Spliceable<T> extends IndexedMut<T> {
 
 interface Reducible<T> {
     reduce: <U>(f: (acc: U, v: T) => U, acc: U) => U;
+}
+
+class ImmArrayAdapter<T> implements Sized, Indexed<T> {
+    constructor(
+        private readonly vs: T[]
+    ) {}
+    
+    size(): number { return this.vs.length; }
+    
+    at(i: number): T { return this.vs[i]; }
 }
 
 function eq<T>(x: T, y: T): boolean { return x === y; }
