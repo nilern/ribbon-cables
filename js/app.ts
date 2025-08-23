@@ -1,4 +1,4 @@
-export {todos, controller};
+export {model, controller};
 
 import type {Reset} from "./prelude.js";
 import {eq, str} from "./prelude.js";
@@ -11,29 +11,58 @@ import {el} from "./dom.js";
 
 class Todo {
     constructor(
+        public readonly id: number,
         public readonly text: string,
         public readonly isComplete = false
     ) {}
 };
 
-const todos = signal.source<Todo[]>(eq, []); // Global for REPL testing
-
-class Ctrl {
-    constructor(private readonly model: Signal<Todo[]> & Reset<Todo[]>) {}
+class Model {
+    constructor(
+        public readonly nextId = 0,
+        public readonly todos: Todo[] = []
+    ) {
     
-    addTodo(todo: Todo) {
-        this.model.reset([...this.model.ref(), todo]);
+    }
+    
+    withTodo(text: string, isComplete: boolean): Model {
+        return new Model(
+            this.nextId + 1,
+            [...this.todos, new Todo(this.nextId, text, isComplete)]
+        );
+    }
+    
+    withoutTodo(id: number): Model {
+        return new Model(
+            this.nextId,
+            this.todos.filter((todo) => todo.id !== id)
+        )
     }
 }
 
-const controller = new Ctrl(todos); // Global for REPL testing
+const model = signal.source(eq, new Model()); // Global for REPL testing
+
+// TODO: Limited versions for different components:
+class Ctrl {
+    constructor(private readonly model: Signal<Model> & Reset<Model>) {}
+    
+    addTodo(text: string, isComplete = false) {
+        this.model.reset(this.model.ref().withTodo(text, isComplete));
+    }
+    
+    clearTodo(id: number) {
+        this.model.reset(this.model.ref().withoutTodo(id));
+    }
+}
+
+const controller = new Ctrl(model); // Global for REPL testing
 
 function todosHeader(ctrl: Ctrl): Node {
     function handleKey(e: Event) {
         const event = e as KeyboardEvent;
         if (event.key === "Enter") {
             const input = event.target as HTMLInputElement;
-            ctrl.addTodo(new Todo(input.value.trim()));
+            ctrl.addTodo(input.value.trim());
             input.value = "";
         }
     }
@@ -47,7 +76,7 @@ function todosHeader(ctrl: Ctrl): Node {
                      "onkeydown": handleKey}));
 }
 
-function item(todoS: Signal<Todo>): Node {
+function item(ctrl: Ctrl, todoS: Signal<Todo>): Node {
     const isCompleteS = signal.map(eq, ({isComplete}: Todo) => isComplete, todoS);
     const textS = signal.map(eq, ({text}: Todo) => text, todoS);
     
@@ -55,6 +84,10 @@ function item(todoS: Signal<Todo>): Node {
         signal.map(eq, (isComplete) => isComplete ? "completed" : "", isCompleteS);
     const checkedS: Signal<string | undefined> =
         signal.map(eq, (isComplete) => isComplete ? "true" : undefined, isCompleteS);
+        
+    function onDestroy(_: Event) {
+        ctrl.clearTodo(todoS.ref().id);
+    }
 
     return el("li", {"class": classeS},
         el("div", {"class": "view"}, 
@@ -62,17 +95,18 @@ function item(todoS: Signal<Todo>): Node {
                          "type": "checkbox",
                          "checked": checkedS}), // TODO: Interaction
             el("label", {}, textS),
-            el("button", {"class": "destroy"})), // TODO: Interaction
+            el("button", {"class": "destroy",
+                          "onclick": onDestroy})),
         el("input", {"class": "edit", "value": textS})); // TODO: Interaction
 }
 
-function todoList(todos: Vecnal<Todo>): Node {
+function todoList(ctrl: Ctrl, todos: Vecnal<Todo>): Node {
     return el("section", {"class": "main"},
         el("input", {"id": "toggle-all", "class": "toggle-all", "type": "checkbox"}),
         el("label", {"for": "toggle-all"}, "Mark all as complete"),
         
         el("ul", {"class": "todo-list"},
-            vecnal.map(eq, item, vecnal.view(todos))))
+            vecnal.map(eq, (todoS) => item(ctrl, todoS), vecnal.view(todos))))
 }
 
 function todoFilter(label: string, path: string, isSelected: Signal<boolean>): Node {
@@ -105,7 +139,7 @@ function createUI(ctrl: Ctrl, todos: Vecnal<Todo>): Element {
     return el("section", {"class": "todoapp"},
         todosHeader(ctrl),
                          
-        todoList(todos),
+        todoList(ctrl, todos),
                 
         todosFooter(todos));
 }
@@ -113,7 +147,8 @@ function createUI(ctrl: Ctrl, todos: Vecnal<Todo>): Element {
 (function (window) {
 	'use strict';
 
-	const ui = createUI(controller, vecnal.imux(eq, todos));
+    const todos = vecnal.imux(eq, signal.map(eq, (model: Model) => model.todos, model));
+	const ui = createUI(controller, todos);
 	const body = document.body;
 	dom.insertBefore(body, ui, body.children[0]);
 })(window);
