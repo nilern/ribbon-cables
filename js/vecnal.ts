@@ -4,7 +4,8 @@ export type {
 export {
     Vecnal,
     stable, source,
-    view, concat, lift,
+    mux, lift,
+    view, concat,
     map, filter, reduce
 };
 
@@ -839,6 +840,31 @@ function reduce<T, U>(equals: (x: U, y: U) => boolean, f: (acc: U, v: T) => U,
     accS: Signal<U>, collS: Vecnal<T>
 ): Signal<U> {
     return new ReducedSignal(equals, f, accS, collS);
+}
+
+class ThunkSignal<T> extends Signal<T> {
+    constructor(
+        private readonly f: () => T
+    ) {
+        super();
+    }
+    
+    ref(): T { return this.f(); }
+    
+    subscribe(_: Subscriber<T>) {}
+    
+    unsubscribe(_: Subscriber<T>) {}
+    
+    notify(v: T, u: T) {}
+}
+
+function emptyArrays<T>(): T[] { return []; }
+
+function mux<T>(collS: Vecnal<T>): Signal<T[]> {
+    return reduce(eq, (coll, v) => {
+        coll.push(v);
+        return coll;
+    }, new ThunkSignal<T[]>(emptyArrays), collS);
 }
 
 class ViewVecnal<T> extends Vecnal<Signal<T>> implements IndexedSubscriber<T> {
