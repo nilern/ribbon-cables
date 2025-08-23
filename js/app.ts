@@ -1,4 +1,4 @@
-export {todos};
+export {todos, controller};
 
 import type {Reset} from "./prelude.js";
 import {eq, str} from "./prelude.js";
@@ -18,13 +18,22 @@ class Todo {
 
 const todos = signal.source<Todo[]>(eq, []); // Global for REPL testing
 
-// TODO: Encapsulate adding to `todos`:
-function todosHeader(todos: Signal<Todo[]> & Reset<Todo[]>): Node {
+class Ctrl {
+    constructor(private readonly model: Signal<Todo[]> & Reset<Todo[]>) {}
+    
+    addTodo(todo: Todo) {
+        this.model.reset([...this.model.ref(), todo]);
+    }
+}
+
+const controller = new Ctrl(todos); // Global for REPL testing
+
+function todosHeader(ctrl: Ctrl): Node {
     function handleKey(e: Event) {
         const event = e as KeyboardEvent;
         if (event.key === "Enter") {
             const input = event.target as HTMLInputElement;
-            todos.reset([...todos.ref(), new Todo(input.value.trim())]);
+            ctrl.addTodo(new Todo(input.value.trim()));
             input.value = "";
         }
     }
@@ -92,22 +101,19 @@ function todosFooter(todos: Vecnal<Todo>): Node {
         el("button", {"class": "clear-completed"}, "Clear completed")); // TODO: Interaction
 }
 
-// TODO: Encapsulate adding to `todos`:
-function createUI(todos: Signal<Todo[]> & Reset<Todo[]>): Element {
-    const todoZ = vecnal.imux(eq, todos);
-    
+function createUI(ctrl: Ctrl, todos: Vecnal<Todo>): Element {
     return el("section", {"class": "todoapp"},
-        todosHeader(todos),
+        todosHeader(ctrl),
                          
-        todoList(todoZ),
+        todoList(todos),
                 
-        todosFooter(todoZ));
+        todosFooter(todos));
 }
 
 (function (window) {
 	'use strict';
 
-	const ui = createUI(todos);
+	const ui = createUI(controller, vecnal.imux(eq, todos));
 	const body = document.body;
 	dom.insertBefore(body, ui, body.children[0]);
 })(window);
