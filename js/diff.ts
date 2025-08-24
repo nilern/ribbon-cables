@@ -2,7 +2,7 @@ export type {
     EditScript
 };
 export {
-    Edit, Delete, Insert,
+    Edit, Delete, Insert, Substitute,
     diff
 };
 
@@ -19,7 +19,15 @@ class Delete {
     constructor(public readonly index: number) {}
 }
 
-type Edit = Insert | Delete;
+class Substitute {
+    constructor(public readonly index: number) {}
+}
+
+type DiffEdit = Insert | Delete;
+
+type DiffEditScript = DiffEdit[];
+
+type Edit = Insert | Delete | Substitute;
 
 type EditScript = Edit[];
 
@@ -93,8 +101,8 @@ class Differ<T, U> {
         private readonly eq: (x: T, y: U) => boolean
     ) {}
     
-    diff(): EditScript {
-        const edits: EditScript = [];
+    diff(): DiffEditScript {
+        const edits: DiffEditScript = [];
         
         const optPath = this.findPath(new Box(0, 0, this.curr.size(), this.goal.size()));
         if (optPath) {
@@ -263,7 +271,7 @@ class Differ<T, U> {
         return undefined;
     }
     
-    private walkSnakes(path: Path, edits: EditScript) {
+    private walkSnakes(path: Path, edits: DiffEditScript) {
         const pathSize = path.size();
         if (pathSize < 2) {
             return;
@@ -312,8 +320,46 @@ class Differ<T, U> {
     }
 }
 
+function myersDiff<T, U>(curr: Sized & Indexed<T>, goal: Sized & Indexed<U>, eq: (x: T, y: U) => boolean
+): DiffEditScript {
+    return (new Differ(curr, goal, eq)).diff();
+}
+
+// OPTIMIZE: In place:
+function substituteSubstitutions(diffEdits: DiffEditScript): EditScript {
+    const len = diffEdits.length;
+    
+    if (len < 2) { return [...diffEdits]; }
+
+    const edits: EditScript = [];
+    
+    {
+        let prevEdit: DiffEdit | undefined = diffEdits[0];
+        
+        for (let i = 1; i < len; ++i) {
+            const edit = diffEdits[i];
+            
+            if (prevEdit instanceof Insert
+                && edit instanceof Delete
+                && prevEdit.index + 1 === edit.index
+            ) {
+                edits.push(new Substitute(prevEdit.index));
+                prevEdit = undefined;
+            } else {
+                if (prevEdit) { edits.push(prevEdit); }
+                prevEdit = edit;
+            }
+        }
+        
+        if (prevEdit) { edits.push(prevEdit); }
+    }
+    
+    return edits;
+}
+
+// OPTIMIZE: Take callbacks object instead of returning array of edits:
 function diff<T, U>(curr: Sized & Indexed<T>, goal: Sized & Indexed<U>, eq: (x: T, y: U) => boolean
 ): EditScript {
-    return (new Differ(curr, goal, eq)).diff();
+    return substituteSubstitutions(myersDiff(curr, goal, eq));
 }
 

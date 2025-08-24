@@ -36,7 +36,7 @@ class Model {
         return new Model(
             this.nextId,
             this.todos.filter((todo) => todo.id !== id)
-        )
+        );
     }
 }
 
