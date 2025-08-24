@@ -993,27 +993,31 @@ class ImuxVecnal<T> extends Vecnal<T> {
         
         this.inputSubscriber = (oldVs, newVs) => {
             const edits = diff.diff(new ImmArrayAdapter(oldVs), new ImmArrayAdapter(newVs), this.equals);
-            for (const edit of edits) {
-                if (edit instanceof diff.Insert) {
-                    const i = edit.index;
-                    const v = newVs[i];
-                    this.vs.splice(i, 0, v);
-                    this.notifyInsert(i, v);
-                } else if (edit instanceof diff.Delete) {
-                    const i = edit.index;
-                    this.vs.splice(i, 1);
-                    this.notifyRemove(i);
-                } else if (edit instanceof diff.Substitute) {
-                    const i = edit.index;
-                    const u = this.vs[i];
-                    const v = newVs[i];
-                    this.vs[i] = v;
-                    this.notifySubstitute(i, u, v);
-                } else {
-                    const _exhaust: never = edit;
-                }
-            }
+            this.patch(newVs, edits);
         };
+    }
+    
+    private patch(newVs: T[], edits: diff.EditScript) {
+        for (const edit of edits) {
+            if (edit instanceof diff.Insert) {
+                const i = edit.index;
+                const v = newVs[i];
+                this.vs.splice(i, 0, v);
+                this.notifyInsert(i, v);
+            } else if (edit instanceof diff.Delete) {
+                const i = edit.index;
+                this.vs.splice(i, 1);
+                this.notifyRemove(i);
+            } else if (edit instanceof diff.Substitute) {
+                const i = edit.index;
+                const u = this.vs[i];
+                const v = newVs[i];
+                this.vs[i] = v;
+                this.notifySubstitute(i, u, v);
+            } else {
+                const _exhaust: never = edit;
+            }
+        }
     }
     
     size(): number {
