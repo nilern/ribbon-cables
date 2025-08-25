@@ -15,6 +15,10 @@ class Todo {
         public readonly text: string,
         public readonly isComplete = false
     ) {}
+    
+    withCompletion(isComplete: boolean): Todo {
+        return new Todo(this.id, this.text, isComplete);
+    }
 };
 
 class Model {
@@ -32,10 +36,27 @@ class Model {
         );
     }
     
+    withTodoCompleted(id: number, isComplete: boolean): Model {
+        return new Model(
+            this.nextId,
+            this.todos.map((todo) => todo.id !== id
+                ? todo
+                : todo.withCompletion(isComplete)
+            )
+        );
+    }
+    
     withoutTodo(id: number): Model {
         return new Model(
             this.nextId,
             this.todos.filter((todo) => todo.id !== id)
+        );
+    }
+    
+    withoutCompleteds(): Model {
+        return new Model(
+            this.nextId,
+            this.todos.filter((todo) => !todo.isComplete)
         );
     }
 }
@@ -46,12 +67,22 @@ const model = signal.source(eq, new Model()); // Global for REPL testing
 class Ctrl {
     constructor(private readonly model: Signal<Model> & Reset<Model>) {}
     
+    // TODO: `this.model.swap(...)`:
+    
     addTodo(text: string, isComplete = false) {
         this.model.reset(this.model.ref().withTodo(text, isComplete));
     }
     
+    setIsComplete(id: number, isComplete: boolean) {
+        this.model.reset(this.model.ref().withTodoCompleted(id, isComplete));
+    }
+    
     clearTodo(id: number) {
         this.model.reset(this.model.ref().withoutTodo(id));
+    }
+    
+    clearCompleteds() {
+        this.model.reset(this.model.ref().withoutCompleteds());
     }
 }
 
@@ -77,6 +108,15 @@ function todosHeader(ctrl: Ctrl): Node {
 }
 
 function item(ctrl: Ctrl, todoS: Signal<Todo>): Node {
+    function onDestroy(_: Event) {
+        ctrl.clearTodo(todoS.ref().id);
+    }
+    
+    function onCompletionChange(ev: Event) {
+        const input = ev.target! as HTMLInputElement;
+        ctrl.setIsComplete(todoS.ref().id, input.checked);
+    }
+    
     const isCompleteS = signal.map(eq, ({isComplete}: Todo) => isComplete, todoS);
     const textS = signal.map(eq, ({text}: Todo) => text, todoS);
     
@@ -84,16 +124,13 @@ function item(ctrl: Ctrl, todoS: Signal<Todo>): Node {
         signal.map(eq, (isComplete) => isComplete ? "completed" : "", isCompleteS);
     const checkedS: Signal<string | undefined> =
         signal.map(eq, (isComplete) => isComplete ? "true" : undefined, isCompleteS);
-        
-    function onDestroy(_: Event) {
-        ctrl.clearTodo(todoS.ref().id);
-    }
 
     return el("li", {"class": classeS},
         el("div", {"class": "view"}, 
             el("input", {"class": "toggle",
                          "type": "checkbox",
-                         "checked": checkedS}), // TODO: Interaction
+                         "checked": checkedS,
+                         "onchange": onCompletionChange}),
             el("label", {}, textS),
             el("button", {"class": "destroy",
                           "onclick": onDestroy})),
@@ -119,7 +156,11 @@ function todoFilter(label: string, path: string, isSelected: Signal<boolean>): N
 
 const allIsSelected = signal.source(eq, true);
 
-function todosFooter(todos: Vecnal<Todo>): Node {
+function todosFooter(ctrl: Ctrl, todos: Vecnal<Todo>): Node {
+    function onClearCompleteds(_: Event) {
+        ctrl.clearCompleteds();
+    }
+    
     // OPTIMIZE: Add signal versions of `size()` and `at()` in addition to `reduce()`:
     const todoCount = vecnal.reduce(eq, (acc, _) => acc + 1, signal.stable(0), todos);
     
@@ -132,7 +173,9 @@ function todosFooter(todos: Vecnal<Todo>): Node {
             todoFilter("Active", "/active", signal.stable(false)), // TODO: Interaction
             todoFilter("Completed", "/completed", signal.stable(false))), // TODO: Interaction
         
-        el("button", {"class": "clear-completed"}, "Clear completed")); // TODO: Interaction
+        el("button", {"class": "clear-completed",
+                      "onclick": onClearCompleteds},
+            "Clear completed"));
 }
 
 function createUI(ctrl: Ctrl, todos: Vecnal<Todo>): Element {
@@ -141,7 +184,7 @@ function createUI(ctrl: Ctrl, todos: Vecnal<Todo>): Element {
                          
         todoList(ctrl, todos),
                 
-        todosFooter(todos));
+        todosFooter(ctrl, todos));
 }
 
 (function (window) {
