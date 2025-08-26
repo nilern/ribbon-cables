@@ -4,7 +4,7 @@ export type {
 export {
     Signal,
     stable, source,
-    map
+    map, map2
 };
 
 import type {Deref, Reset} from "./prelude.js";

@@ -108,9 +108,7 @@ function todosHeader(ctrl: Ctrl): Node {
 }
 
 function item(ctrl: Ctrl, todoS: Signal<Todo>): Node {
-    function onDestroy(_: Event) {
-        ctrl.clearTodo(todoS.ref().id);
-    }
+    function onDestroy(_: Event) { ctrl.clearTodo(todoS.ref().id); }
     
     function onCompletionChange(ev: Event) {
         const input = ev.target! as HTMLInputElement;
@@ -118,12 +116,33 @@ function item(ctrl: Ctrl, todoS: Signal<Todo>): Node {
     }
     
     const isCompleteS = signal.map(eq, ({isComplete}: Todo) => isComplete, todoS);
+    const isEditingS = signal.source(eq, false);
     const textS = signal.map(eq, ({text}: Todo) => text, todoS);
     
+    function startEditing(_: Event) { isEditingS.reset(true); }
+    
     const classeS: Signal<string> =
-        signal.map(eq, (isComplete) => isComplete ? "completed" : "", isCompleteS);
+        signal.map2(eq, (isComplete, isEditing) => {
+                if (isComplete) {
+                    if (isEditing) {
+                        return "completed editing";
+                    } else {
+                        return "completed";
+                    }
+                } else {
+                    if (isEditing) {
+                        return "editing";
+                    } else {
+                        return "";
+                    }
+                }
+            },
+            isCompleteS, isEditingS
+        );
     const checkedS: Signal<string | undefined> =
         signal.map(eq, (isComplete) => isComplete ? "true" : undefined, isCompleteS);
+    const displayEditS: Signal<string> =
+        signal.map(eq, (isEditing) => isEditing ? "inline" : "none", isEditingS);
 
     return el("li", {"class": classeS},
         el("div", {"class": "view"}, 
@@ -131,10 +150,13 @@ function item(ctrl: Ctrl, todoS: Signal<Todo>): Node {
                          "type": "checkbox",
                          "checked": checkedS,
                          "onchange": onCompletionChange}),
-            el("label", {}, textS),
+            el("label", {"ondblclick": startEditing},
+                textS),
             el("button", {"class": "destroy",
                           "onclick": onDestroy})),
-        el("input", {"class": "edit", "value": textS})); // TODO: Interaction
+        el("input", {"class": "edit",
+                     "display": displayEditS,
+                     "value": textS})); // TODO: Interaction
 }
 
 function todoList(ctrl: Ctrl, todos: Vecnal<Todo>): Node {
