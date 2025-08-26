@@ -1,5 +1,5 @@
 export type {
-    AttributeString, AttributeValue,
+    AttributeString, BaseAttributeValue, StyleAttributeValue, AttributeValue,
     ChildValue, Child
 };
 export {
@@ -161,7 +161,11 @@ function replaceChild(parent: Element, child: Node, oldChild: Node) {
 
 type AttributeString = string | undefined;
 
-type AttributeValue = AttributeString | Signal<AttributeString> | EventHandler;
+type BaseAttributeValue = AttributeString | Signal<AttributeString>;
+
+type StyleAttributeValue = {[key: string]: BaseAttributeValue};
+
+type AttributeValue = BaseAttributeValue | EventHandler | StyleAttributeValue;
 
 function setAttributeString(node: Element, name: string, val: AttributeString) {
     if (typeof val === "string") {
@@ -169,8 +173,20 @@ function setAttributeString(node: Element, name: string, val: AttributeString) {
     } else if (typeof val === "undefined") {
         node.removeAttribute(name);
     } else {
-        const exhaust: never = val;
-        return exhaust;
+        const _exhaust: never = val;
+    }
+}
+
+function setStyleAttribute(node: HTMLElement, name: string, val: BaseAttributeValue) {
+    if (typeof val === "string" || typeof val === "undefined") {
+        (node.style as unknown as StyleAttributeValue)[name] = val;
+    } else if (val instanceof Signal) {
+        (node.style as unknown as StyleAttributeValue)[name] = val.ref();
+        addWatchee(node as unknown as MountableNode, val, (newVal) => {
+            (node.style as unknown as StyleAttributeValue)[name] = newVal;
+        });
+    } else {
+        const _exhaust: never = val;
     }
 }
 
@@ -184,10 +200,16 @@ function setAttribute(node: Element, name: string, val: AttributeValue) {
         );
     } else if (typeof val === "function") {
         console.assert(name.slice(0, 2) === "on", "%s does not begin with 'on'", name);
+        
         node.addEventListener(name.slice(2), val);
+    } else if (typeof val === "object") {
+        console.assert(name === "style", "%s !== \"style\"", name); // FIXME: Ensure this statically
+        
+        for (const key in val) {
+            setStyleAttribute(node as HTMLElement, key, val[key]);
+        }
     } else {
-        const exhaust: never = val;
-        return exhaust;
+        const _exhaust: never = val;
     }
 }
 
