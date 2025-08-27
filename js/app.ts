@@ -9,6 +9,7 @@ import * as vecnal from "./vecnal.js";
 import * as dom from "./dom.js";
 import {el} from "./dom.js";
 
+// TODO: More lightweight approach to immutable record:
 class Todo {
     constructor(
         public readonly id: number,
@@ -18,6 +19,10 @@ class Todo {
     
     withCompletion(isComplete: boolean): Todo {
         return new Todo(this.id, this.text, isComplete);
+    }
+    
+    withText(text: string): Todo {
+        return new Todo(this.id, text, this.isComplete);
     }
 };
 
@@ -42,6 +47,16 @@ class Model {
             this.todos.map((todo) => todo.id !== id
                 ? todo
                 : todo.withCompletion(isComplete)
+            )
+        );
+    }
+    
+    withTodoText(id: number, text: string): Model {
+        return new Model(
+            this.nextId,
+            this.todos.map((todo) => todo.id !== id
+                ? todo
+                : todo.withText(text)
             )
         );
     }
@@ -77,6 +92,10 @@ class Ctrl {
         this.model.reset(this.model.ref().withTodoCompleted(id, isComplete));
     }
     
+    setText(id: number, text: string) {
+        this.model.reset(this.model.ref().withTodoText(id, text));
+    }
+    
     clearTodo(id: number) {
         this.model.reset(this.model.ref().withoutTodo(id));
     }
@@ -107,19 +126,75 @@ function todosHeader(ctrl: Ctrl): Node {
                      "onkeydown": handleKey}));
 }
 
+function itemCheckbox(
+    isCompleteS: Signal<boolean>, onCompletionChange: (isComplete: boolean) => void
+): Node {
+    const checkedS: Signal<string | undefined> =
+        signal.map(eq, (isComplete) => isComplete ? "true" : undefined, isCompleteS);
+        
+    return el("input", {
+        "class": "toggle",
+        "type": "checkbox",
+        "checked": checkedS,
+        "onchange": (ev: Event) => {
+            const event = ev as InputEvent;
+            const input = event.target as HTMLInputElement;
+            onCompletionChange(input.checked);
+        }
+    });
+}
+
+class ItemEditCtrl {
+    constructor(
+        private readonly tmpTextS: Signal<string> & Reset<string>,
+        private readonly onFinish: (finalText: string) => void
+    ) {}
+    
+    init(text: string) { this.setText(text); }
+    
+    setText(text: string) { this.tmpTextS.reset(text); }
+    
+    finish() { this.onFinish(this.tmpTextS.ref()); }
+}
+
+// TODO: Interaction:
+function itemEditor(ctrl: ItemEditCtrl, isEditingS: Signal<boolean>, tmpTextS: Signal<string>): Node {
+    const displayEditS: Signal<string> =
+        signal.map(eq, (isEditing) => isEditing ? "inline" : "none", isEditingS);
+
+    return el("input", {
+        "class": "edit",
+        "display": displayEditS,
+        "value": tmpTextS,
+        "onchange": (ev: Event) => {
+            const event = ev as InputEvent;
+            const input = event.target as HTMLInputElement;
+            ctrl.setText(input.value);
+        },
+        "onblur": (_) => ctrl.finish()
+    });
+}
+
 function item(ctrl: Ctrl, todoS: Signal<Todo>): Node {
     function onDestroy(_: Event) { ctrl.clearTodo(todoS.ref().id); }
     
-    function onCompletionChange(ev: Event) {
-        const input = ev.target! as HTMLInputElement;
-        ctrl.setIsComplete(todoS.ref().id, input.checked);
+    function onCompletionChange(isComplete: boolean) {
+        ctrl.setIsComplete(todoS.ref().id, isComplete);
+    }
+    
+    function startEditing(_: Event) {
+        isEditingS.reset(true);
+        editCtrl.init(textS.ref());
+    }
+    
+    function finishEditing(finalText: string) {
+        ctrl.setText(todoS.ref().id, finalText);
+        isEditingS.reset(false);
     }
     
     const isCompleteS = signal.map(eq, ({isComplete}: Todo) => isComplete, todoS);
     const isEditingS = signal.source(eq, false);
     const textS = signal.map(eq, ({text}: Todo) => text, todoS);
-    
-    function startEditing(_: Event) { isEditingS.reset(true); }
     
     const classeS: Signal<string> =
         signal.map2(eq, (isComplete, isEditing) => {
@@ -139,24 +214,19 @@ function item(ctrl: Ctrl, todoS: Signal<Todo>): Node {
             },
             isCompleteS, isEditingS
         );
-    const checkedS: Signal<string | undefined> =
-        signal.map(eq, (isComplete) => isComplete ? "true" : undefined, isCompleteS);
-    const displayEditS: Signal<string> =
-        signal.map(eq, (isEditing) => isEditing ? "inline" : "none", isEditingS);
+        
+    const tmpTextS = signal.source(eq, textS.ref());
+    const editCtrl = new ItemEditCtrl(tmpTextS, finishEditing);
 
     return el("li", {"class": classeS},
         el("div", {"class": "view"}, 
-            el("input", {"class": "toggle",
-                         "type": "checkbox",
-                         "checked": checkedS,
-                         "onchange": onCompletionChange}),
-            el("label", {"ondblclick": startEditing},
-                textS),
+            itemCheckbox(isCompleteS, onCompletionChange),
+                         
+            el("label", {"ondblclick": startEditing}, textS),
+                
             el("button", {"class": "destroy",
                           "onclick": onDestroy})),
-        el("input", {"class": "edit",
-                     "display": displayEditS,
-                     "value": textS})); // TODO: Interaction
+        itemEditor(editCtrl, isEditingS, tmpTextS));
 }
 
 function todoList(ctrl: Ctrl, todos: Vecnal<Todo>): Node {
