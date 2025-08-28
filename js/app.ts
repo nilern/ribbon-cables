@@ -9,6 +9,16 @@ import * as vecnal from "./vecnal.js";
 import * as dom from "./dom.js";
 import {el} from "./dom.js";
 
+type Routes = {
+    [k: string]: () => void
+};
+
+interface Router {
+    init(): void;
+};
+
+const createRouter = (window as {[k: string]: any})["Router"] as (routes: Routes) => Router;
+
 // TODO: More lightweight approach to immutable record:
 class Todo {
     constructor(
@@ -77,6 +87,23 @@ class Model {
 }
 
 const model = signal.source(eq, new Model()); // Global for REPL testing
+
+type Filter = "all" | "active" | "completed";
+
+function filterFn(filter: Filter): (todo: Todo) => boolean {
+    if (filter === "all") {
+        return (_: Todo) => true;
+    } else if (filter === "active") {
+        return ({isComplete}: Todo) => !isComplete;
+    } else if (filter === "completed") {
+        return ({isComplete}: Todo) => isComplete;
+    } else {
+        const exhaust: never = filter;
+        return exhaust;
+    }
+} 
+
+const filterS: Signal<Filter> & Reset<Filter> = signal.source<Filter>(eq, "all");
 
 // TODO: Limited versions for different components:
 class Ctrl {
@@ -229,13 +256,13 @@ function item(ctrl: Ctrl, todoS: Signal<Todo>): Node {
         itemEditor(editCtrl, isEditingS, tmpTextS));
 }
 
-function todoList(ctrl: Ctrl, todos: Vecnal<Todo>): Node {
+function todoList(ctrl: Ctrl, todoS: Vecnal<Todo>): Node {
     return el("section", {"class": "main"},
         el("input", {"id": "toggle-all", "class": "toggle-all", "type": "checkbox"}),
         el("label", {"for": "toggle-all"}, "Mark all as complete"),
         
         el("ul", {"class": "todo-list"},
-            vecnal.map(eq, (todoS) => item(ctrl, todoS), vecnal.view(todos))))
+            vecnal.map(eq, (todoS) => item(ctrl, todoS), vecnal.view(todoS))))
 }
 
 function todoFilter(label: string, path: string, isSelected: Signal<boolean>): Node {
@@ -246,9 +273,7 @@ function todoFilter(label: string, path: string, isSelected: Signal<boolean>): N
              label));
 }
 
-const allIsSelected = signal.source(eq, true);
-
-function todosFooter(ctrl: Ctrl, todos: Vecnal<Todo>): Node {
+function todosFooter(ctrl: Ctrl, todos: Vecnal<Todo>, filterS: Signal<Filter>): Node {
     function onClearCompleteds(_: Event) {
         ctrl.clearCompleteds();
     }
@@ -256,35 +281,52 @@ function todosFooter(ctrl: Ctrl, todos: Vecnal<Todo>): Node {
     // OPTIMIZE: Add signal versions of `size()` and `at()` in addition to `reduce()`:
     const todoCount = vecnal.reduce(eq, (acc, _) => acc + 1, signal.stable(0), todos);
     
+    const allIsSelected: Signal<boolean> = signal.map(eq, (v) => v === "all", filterS);
+    const activeIsSelected: Signal<boolean>  = signal.map(eq, (v) => v === "active", filterS);
+    const completedIsSelected: Signal<boolean>  = signal.map(eq, (v) => v === "completed", filterS);
+    
     return el("footer", {"class": "footer"},
         el("span", {"class": "todo-count"},
             el("strong", {}, signal.map(eq, str, todoCount)), " items left"),
         
         el("ul", {"class": "filters"},
             todoFilter("All", "/", allIsSelected), // TODO: Interaction
-            todoFilter("Active", "/active", signal.stable(false)), // TODO: Interaction
-            todoFilter("Completed", "/completed", signal.stable(false))), // TODO: Interaction
+            todoFilter("Active", "/active", activeIsSelected), // TODO: Interaction
+            todoFilter("Completed", "/completed", completedIsSelected)), // TODO: Interaction
         
         el("button", {"class": "clear-completed",
                       "onclick": onClearCompleteds},
             "Clear completed"));
 }
 
-function createUI(ctrl: Ctrl, todos: Vecnal<Todo>): Element {
+function createUI(ctrl: Ctrl, todoS: Signal<Todo[]>, filterS: Signal<Filter>): Element {
+    const visibleTodoS: Signal<Todo[]> = signal.map2(eq,
+        (todos, filter) => todos.filter(filterFn(filter)),
+        todoS, filterS);
+    
     return el("section", {"class": "todoapp"},
         todosHeader(ctrl),
                          
-        todoList(ctrl, todos),
+        todoList(ctrl, vecnal.imux(eq, visibleTodoS)),
                 
-        todosFooter(ctrl, todos));
+        todosFooter(ctrl, vecnal.imux(eq, todoS), filterS));
 }
+
+const routes = {
+    "/": () => filterS.reset("all"),
+    "/active": () => filterS.reset("active"),
+    "/completed": () => filterS.reset("completed")
+};
 
 (function (window) {
 	'use strict';
 
-    const todos = vecnal.imux(eq, signal.map(eq, (model: Model) => model.todos, model));
-	const ui = createUI(controller, todos);
+    const todos = signal.map(eq, (model: Model) => model.todos, model);
+	const ui = createUI(controller, todos, filterS);
 	const body = document.body;
 	dom.insertBefore(body, ui, body.children[0]);
+	
+	const router = createRouter(routes);
+	router.init();
 })(window);
 
