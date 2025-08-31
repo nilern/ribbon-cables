@@ -6,7 +6,7 @@ export {
     stable, source,
     mux, imux, lift,
     view, concat,
-    map, filter, reduce
+    filter, reduce
 };
 
 import type {Reset, Sized, Indexed, Spliceable, Reducible} from "./prelude.js";
@@ -49,6 +49,10 @@ abstract class Vecnal<T> implements IVecnal<T> {
     abstract notifyInsert(i: number, v: T): void;
     abstract notifyRemove(i: number): void;
     abstract notifySubstitute(i: number, v: T, u: T): void;
+    
+    map<U>(equals: (x: U, y: U) => boolean, f: (v: T) => U): Vecnal<U> {
+        return new MappedVecnal(equals, f, this);
+    }
 }
 
 class ConstVecnal<T> extends Vecnal<T> {
@@ -283,10 +287,6 @@ class MappedVecnal<U, T> extends Vecnal<U> implements IndexedSubscriber<T> {
             subscriber.onRemove(i);
         }
     }
-}
-
-function map<T, U>(equals: (x: U, y: U) => boolean, f: (v: T) => U, collS: Vecnal<T>): Vecnal<U> {
-    return new MappedVecnal(equals, f, collS);
 }
 
 class FilteredVecnal<T> extends Vecnal<T> implements IndexedSubscriber<T> {

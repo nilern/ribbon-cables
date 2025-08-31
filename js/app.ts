@@ -262,7 +262,7 @@ function todoList(ctrl: Ctrl, todoS: Vecnal<Todo>): Node {
         el("label", {"for": "toggle-all"}, "Mark all as complete"),
         
         el("ul", {"class": "todo-list"},
-            vecnal.map(eq, (todoS) => item(ctrl, todoS), vecnal.view(todoS))))
+            vecnal.view(todoS).map(eq, (todoS) => item(ctrl, todoS))))
 }
 
 function todoFilter(label: string, path: string, isSelected: Signal<boolean>): Node {

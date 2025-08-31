@@ -230,7 +230,7 @@ function childValueToNode(child: ChildValue): Node {
 
 function childToVecnal(child: Child): Vecnal<Node> {
     if (child instanceof Vecnal) {
-        return vecnal.map(eq, childValueToNode, child);
+        return child.map(eq, childValueToNode);
     } else if (child instanceof Signal) {
         return vecnal.lift(child.map(eq, childValueToNode));
     } else if (Array.isArray(child)) {
