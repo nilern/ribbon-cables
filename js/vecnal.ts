@@ -4,7 +4,7 @@ export type {
 export {
     Vecnal,
     stable, source,
-    mux, imux, lift,
+    imux, lift,
     concat,
     reduce
 };
@@ -57,6 +57,13 @@ abstract class Vecnal<T> implements IVecnal<T> {
     filter(f: (v: T) => boolean): Vecnal<T> { return new FilteredVecnal(f, this); }
     
     view(): Vecnal<Signal<T>> { return new ViewVecnal(this); }
+    
+    mux(): Signal<T[]> {
+        return reduce(eq, (coll, v) => {
+            coll.push(v);
+            return coll;
+        }, new ThunkSignal<T[]>(emptyArrays), this);
+    }
 }
 
 class ConstVecnal<T> extends Vecnal<T> {
@@ -860,13 +867,6 @@ class ThunkSignal<T> extends Signal<T> {
 }
 
 function emptyArrays<T>(): T[] { return []; }
-
-function mux<T>(collS: Vecnal<T>): Signal<T[]> {
-    return reduce(eq, (coll, v) => {
-        coll.push(v);
-        return coll;
-    }, new ThunkSignal<T[]>(emptyArrays), collS);
-}
 
 class ViewVecnal<T> extends Vecnal<Signal<T>> implements IndexedSubscriber<T> {
     private readonly signals: (Signal<T> & Reset<T>)[]; // OPTIMIZE: RRB vector
