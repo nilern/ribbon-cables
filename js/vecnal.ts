@@ -5,8 +5,7 @@ export {
     Vecnal,
     stable, source,
     imux, lift,
-    concat,
-    reduce
+    concat
 };
 
 import type {Reset, Sized, Indexed, Spliceable, Reducible} from "./prelude.js";
@@ -56,13 +55,18 @@ abstract class Vecnal<T> implements IVecnal<T> {
     
     filter(f: (v: T) => boolean): Vecnal<T> { return new FilteredVecnal(f, this); }
     
+    reduceS<U>(equals: (x: U, y: U) => boolean, f: (acc: U, v: T) => U, accS: Signal<U>
+    ): Signal<U> {
+        return new ReducedSignal(equals, f, accS, this);
+    }
+    
     view(): Vecnal<Signal<T>> { return new ViewVecnal(this); }
     
     mux(): Signal<T[]> {
-        return reduce(eq, (coll, v) => {
+        return this.reduceS(eq, (coll, v) => {
             coll.push(v);
             return coll;
-        }, new ThunkSignal<T[]>(emptyArrays), this);
+        }, new ThunkSignal<T[]>(emptyArrays));
     }
 }
 
@@ -842,12 +846,6 @@ class ReducedSignal<U, T> extends Signal<U> implements IndexedSubscriber<T> {
     onRemove(_: number) { this.onChange(); }
     
     onSubstitute(_: number, _1: T) { this.onChange(); }
-}
-
-function reduce<T, U>(equals: (x: U, y: U) => boolean, f: (acc: U, v: T) => U,
-    accS: Signal<U>, collS: Vecnal<T>
-): Signal<U> {
-    return new ReducedSignal(equals, f, accS, collS);
 }
 
 class ThunkSignal<T> extends Signal<T> {

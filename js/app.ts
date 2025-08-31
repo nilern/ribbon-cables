@@ -280,7 +280,7 @@ function todosFooter(ctrl: Ctrl, todos: Vecnal<Todo>, filterS: Signal<Filter>): 
     }
     
     // OPTIMIZE: Add signal versions of `size()` and `at()` in addition to `reduce()`:
-    const todoCount = vecnal.reduce(eq, (acc, _) => acc + 1, signal.stable(0), todos);
+    const todoCount = todos.reduceS(eq, (acc, _) => acc + 1, signal.stable(0));
     
     const allIsSelected: Signal<boolean> = filterS.map(eq, (v) => v === "all");
     const activeIsSelected: Signal<boolean> = filterS.map(eq, (v) => v === "active");
