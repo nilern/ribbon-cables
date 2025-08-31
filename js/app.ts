@@ -157,7 +157,7 @@ function itemCheckbox(
     isCompleteS: Signal<boolean>, onCompletionChange: (isComplete: boolean) => void
 ): Node {
     const checkedS: Signal<string | undefined> =
-        signal.map(eq, (isComplete) => isComplete ? "true" : undefined, isCompleteS);
+        isCompleteS.map(eq, (isComplete) => isComplete ? "true" : undefined);
         
     return el("input", {
         "class": "toggle",
@@ -187,7 +187,7 @@ class ItemEditCtrl {
 // TODO: Interaction:
 function itemEditor(ctrl: ItemEditCtrl, isEditingS: Signal<boolean>, tmpTextS: Signal<string>): Node {
     const displayEditS: Signal<string> =
-        signal.map(eq, (isEditing) => isEditing ? "inline" : "none", isEditingS);
+        isEditingS.map(eq, (isEditing) => isEditing ? "inline" : "none");
 
     return el("input", {
         "class": "edit",
@@ -219,12 +219,12 @@ function item(ctrl: Ctrl, todoS: Signal<Todo>): Node {
         isEditingS.reset(false);
     }
     
-    const isCompleteS = signal.map(eq, ({isComplete}: Todo) => isComplete, todoS);
+    const isCompleteS = todoS.map(eq, ({isComplete}: Todo) => isComplete);
     const isEditingS = signal.source(eq, false);
-    const textS = signal.map(eq, ({text}: Todo) => text, todoS);
+    const textS = todoS.map(eq, ({text}: Todo) => text);
     
     const classeS: Signal<string> =
-        signal.map2(eq, (isComplete, isEditing) => {
+        isCompleteS.map2(eq, (isComplete, isEditing) => {
                 if (isComplete) {
                     if (isEditing) {
                         return "completed editing";
@@ -239,7 +239,7 @@ function item(ctrl: Ctrl, todoS: Signal<Todo>): Node {
                     }
                 }
             },
-            isCompleteS, isEditingS
+            isEditingS
         );
         
     const tmpTextS = signal.source(eq, textS.ref());
@@ -267,8 +267,7 @@ function todoList(ctrl: Ctrl, todoS: Vecnal<Todo>): Node {
 
 function todoFilter(label: string, path: string, isSelected: Signal<boolean>): Node {
     return el("li", {},
-        el("a", {"class": signal.map(eq, (isSelected) => isSelected ? "selected" : "",
-                    isSelected),
+        el("a", {"class": isSelected.map(eq, (isSelected) => isSelected ? "selected" : ""),
                  "href": `#${path}`},
              label));
 }
@@ -281,13 +280,13 @@ function todosFooter(ctrl: Ctrl, todos: Vecnal<Todo>, filterS: Signal<Filter>): 
     // OPTIMIZE: Add signal versions of `size()` and `at()` in addition to `reduce()`:
     const todoCount = vecnal.reduce(eq, (acc, _) => acc + 1, signal.stable(0), todos);
     
-    const allIsSelected: Signal<boolean> = signal.map(eq, (v) => v === "all", filterS);
-    const activeIsSelected: Signal<boolean>  = signal.map(eq, (v) => v === "active", filterS);
-    const completedIsSelected: Signal<boolean>  = signal.map(eq, (v) => v === "completed", filterS);
+    const allIsSelected: Signal<boolean> = filterS.map(eq, (v) => v === "all");
+    const activeIsSelected: Signal<boolean> = filterS.map(eq, (v) => v === "active");
+    const completedIsSelected: Signal<boolean> = filterS.map(eq, (v) => v === "completed");
     
     return el("footer", {"class": "footer"},
         el("span", {"class": "todo-count"},
-            el("strong", {}, signal.map(eq, str, todoCount)), " items left"),
+            el("strong", {}, todoCount.map(eq, str)), " items left"),
         
         el("ul", {"class": "filters"},
             todoFilter("All", "/", allIsSelected), // TODO: Interaction
@@ -300,9 +299,9 @@ function todosFooter(ctrl: Ctrl, todos: Vecnal<Todo>, filterS: Signal<Filter>): 
 }
 
 function createUI(ctrl: Ctrl, todoS: Signal<Todo[]>, filterS: Signal<Filter>): Element {
-    const visibleTodoS: Signal<Todo[]> = signal.map2(eq,
+    const visibleTodoS: Signal<Todo[]> = todoS.map2(eq,
         (todos, filter) => todos.filter(filterFn(filter)),
-        todoS, filterS);
+        filterS);
     
     return el("section", {"class": "todoapp"},
         todosHeader(ctrl),
@@ -321,7 +320,7 @@ const routes = {
 (function (window) {
 	'use strict';
 
-    const todos = signal.map(eq, (model: Model) => model.todos, model);
+    const todos = model.map(eq, (model: Model) => model.todos);
 	const ui = createUI(controller, todos, filterS);
 	const body = document.body;
 	dom.insertBefore(body, ui, body.children[0]);

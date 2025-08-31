@@ -3,8 +3,7 @@ export type {
 };
 export {
     Signal,
-    stable, source,
-    map, map2
+    stable, source
 };
 
 import type {Deref, Reset} from "./prelude.js";
@@ -27,6 +26,20 @@ abstract class Signal<T> implements ISignal<T> {
     abstract subscribe(subscriber: Subscriber<T>): void;
     abstract unsubscribe(subscriber: Subscriber<T>): void;
     abstract notify(v: T, u: T): void;
+    
+    map<U>(equals: (x: U, y: U) => boolean, f: (v: T) => U): Signal<U> {
+        const g = f as (...xs: any[]) => U; // SAFETY: `xs` are `[this].map((x) => x.ref())`
+    
+        return new MappedSignal(equals, g, this);
+    }
+    
+    map2<R, U>(equals: (x: R, y: R) => boolean, f: (x: T, y: U) => R, that: Signal<U>
+    ): Signal<R> {
+        // SAFETY: `xs` are `[this, that].map((x) => x.ref())`:
+        const g = f as (...xs: any[]) => R; 
+        
+        return new MappedSignal(equals, g, this, that);
+    }
 }
 
 class ConstSignal<T> extends Signal<T> {
@@ -159,23 +172,5 @@ class MappedSignal<U, T extends Signal<any>[]> extends Signal<U> {
             }
         }
     }
-}
-
-// Type safe wrappers for `MappedSignal` creation:
-
-// TODO: Make into methods of `Signal`:
-
-function map<R, T>(equals: (x: R, y: R) => boolean, f: (x: T) => R, s: Signal<T>): Signal<R> {
-    const g = f as (...xs: any[]) => R; // SAFETY: `xs` are `[s].map((x) => x.ref())`
-    
-    return new MappedSignal(equals, g, s);
-}
-
-function map2<R, T, U>(equals: (x: R, y: R) => boolean, f: (x: T, y: U) => R,
-    s1: Signal<T>, s2: Signal<U>
-): Signal<R> {
-    const g = f as (...xs: any[]) => R; // SAFETY: `xs` are `[s1, s2].map((x) => x.ref())`
-    
-    return new MappedSignal(equals, g, s1, s2);
 }
 
