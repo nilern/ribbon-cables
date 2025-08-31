@@ -5,7 +5,7 @@ export {
     Vecnal,
     stable, source,
     mux, imux, lift,
-    view, concat,
+    concat,
     reduce
 };
 
@@ -55,6 +55,8 @@ abstract class Vecnal<T> implements IVecnal<T> {
     }
     
     filter(f: (v: T) => boolean): Vecnal<T> { return new FilteredVecnal(f, this); }
+    
+    view(): Vecnal<Signal<T>> { return new ViewVecnal(this); }
 }
 
 class ConstVecnal<T> extends Vecnal<T> {
@@ -973,8 +975,6 @@ class ViewVecnal<T> extends Vecnal<Signal<T>> implements IndexedSubscriber<T> {
         }
     }
 }
-
-function view<T>(collS: Vecnal<T>): Vecnal<Signal<T>> { return new ViewVecnal(collS); }
 
 class ImuxVecnal<T> extends Vecnal<T> {
     private readonly subscribers = new Set<IndexedSubscriber<T>>();
