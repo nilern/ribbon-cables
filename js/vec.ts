@@ -8,6 +8,17 @@ const indexBitsPerLevel = 5; // Branching factor 2^5 = 32
 const branchingFactor = 1 << indexBitsPerLevel; // 2^5 = 32
 const levelMask = branchingFactor - 1; // 0b11111
 
+function treeWith<T>(tree: VecNode, level: number, i: number, v: T): VecNode {
+    const newTree = [...tree];
+    const indexInLevel = (i >> (level * indexBitsPerLevel)) & levelMask;
+
+    newTree[indexInLevel] = level > 0
+        ? treeWith(newTree[indexInLevel], level - 1, i, v)
+        : v;
+    
+    return newTree;
+}
+
 function createBranch<T>(depth: number, v: T): VecNode {
     let branch: any = v;
     
@@ -53,8 +64,8 @@ class Vec<T> {
     get(index: number): T {
         let node: VecNode = this.root;
         
-        for (let level = this.depth, shift = (level - 1) * indexBitsPerLevel;
-             level > 1;
+        for (let level = this.depth - 1, shift = level * indexBitsPerLevel;
+             level > 0;
              --level, shift -= indexBitsPerLevel
         ) {
             const indexInLevel = (index >> shift) & levelMask;
@@ -62,6 +73,14 @@ class Vec<T> {
         }
         
         return node[index & levelMask] as T;
+    }
+    
+    with(i: number, v: T): Vec<T> {
+        return new Vec(
+            this.length,
+            this.depth,
+            treeWith(this.root, this.depth - 1, i, v)
+        );
     }
     
     withPushed(v: T): Vec<T> {
