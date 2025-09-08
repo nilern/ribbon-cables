@@ -2,7 +2,15 @@ export {
     Vec
 };
 
+type VecNodeSizes = readonly number[] | undefined;
+
 type VecNode = readonly any[];
+type InternalNode = readonly [VecNodeSizes, ...any[]];
+type InternalNodeMut = [VecNodeSizes, ...any[]];
+
+function isInternalNode(tree: VecNode, depth: number): tree is InternalNode {
+    return depth > 1;
+}
 
 const indexBitsPerLevel = 5; // Branching factor 2^5 = 32
 const branchingFactor = 1 << indexBitsPerLevel; // 2^5 = 32
@@ -12,18 +20,20 @@ function treeWith<T>(tree: VecNode, level: number, i: number, v: T): VecNode {
     const newTree = [...tree];
     const indexInLevel = (i >> (level * indexBitsPerLevel)) & levelMask;
 
-    newTree[indexInLevel] = level > 0
-        ? treeWith(newTree[indexInLevel], level - 1, i, v)
-        : v;
+    if (isInternalNode(newTree, level + 1)) {
+        newTree[indexInLevel + 1] = treeWith(newTree[indexInLevel + 1], level - 1, i, v);
+    } else {
+        newTree[indexInLevel] = v;
+    }
     
     return newTree;
 }
 
 function createBranch<T>(depth: number, v: T): VecNode {
-    let branch: any = v;
+    let branch = [v] as VecNode;
     
-    for (let d = 0; d < depth; ++d) {
-        branch = [branch];
+    for (let d = 1; d < depth; ++d) {
+        branch = [undefined, branch] as InternalNode;
     }
     
     return branch as VecNode;
@@ -31,7 +41,7 @@ function createBranch<T>(depth: number, v: T): VecNode {
 
 // Returns `undefined` on overflow:
 function treeWithPushedLeaf<T>(tree: VecNode, depth: number, v: T): VecNode | undefined {
-    if (depth > 1) { // Internal node
+    if (isInternalNode(tree, depth)) {
         const lastBranchIndex = tree.length - 1;
         const lastChild = treeWithPushedLeaf(tree[lastBranchIndex], depth - 1, v);
         if (lastChild) {
@@ -45,7 +55,7 @@ function treeWithPushedLeaf<T>(tree: VecNode, depth: number, v: T): VecNode | un
                 return undefined;
             }
         }
-    } else { // Leafy node
+    } else {
         if (tree.length < branchingFactor) {
             return [...tree, v];
         } else {
@@ -69,7 +79,7 @@ class Vec<T> {
              --level, shift -= indexBitsPerLevel
         ) {
             const indexInLevel = (index >> shift) & levelMask;
-            node = node[indexInLevel] as VecNode;
+            node = node[indexInLevel + 1] as VecNode;
         }
         
         return node[index & levelMask] as T;
@@ -95,7 +105,7 @@ class Vec<T> {
             return new Vec(
                 this.length + 1,
                 this.depth + 1,
-                [this.root, createBranch(this.depth, v)]
+                [undefined, this.root, createBranch(this.depth, v)] as InternalNode
             );
         }
     }
