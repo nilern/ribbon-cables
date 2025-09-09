@@ -2,7 +2,8 @@ export {
     Vec
 };
 
-type VecNodeSizes = readonly number[] | undefined;
+type ChildSizes = readonly number[];
+type VecNodeSizes = ChildSizes | undefined;
 
 type VecNode = readonly any[];
 type InternalNode = readonly [VecNodeSizes, ...any[]];
@@ -16,6 +17,61 @@ const indexBitsPerLevel = 5; // Branching factor 2^5 = 32
 const branchingFactor = 1 << indexBitsPerLevel; // 2^5 = 32
 const levelMask = branchingFactor - 1; // 0b11111
 
+/* Typical cache line size is 64 bytes.
+ * Typical `number` size is 8 bytes (even on 32-bit machines due to NaN-tagging). */
+const linearTreshold = 8; // 64 / 8
+
+function getBranchIndex(sizes: ChildSizes, indexInTree: number): number {
+    let low = 0;
+    
+    // Binary search:
+    for (let high = sizes.length, length = high - low;
+         length > linearTreshold;
+         length = high - low
+    ) {
+        const mid = low + length / 2;
+        
+        if (sizes[mid] <= indexInTree) {
+            low = mid + 1;
+        } else {
+            high = mid + 1;
+        }
+    }
+    
+    // Linear search:
+    while (sizes[low] <= indexInTree) { ++low; }
+    
+    return low - 1;
+}
+
+function treeGetRadix(tree: VecNode, level: number, index: number): any {
+    for (let shift = level * indexBitsPerLevel;
+         level > 0;
+         --level, shift -= indexBitsPerLevel
+    ) {
+        const indexInLevel = (index >> shift) & levelMask;
+        tree = tree[indexInLevel + 1] as VecNode;
+    }
+    
+    return tree[index & levelMask];
+}
+
+function treeGet(tree: VecNode, level: number, index: number): any {
+    for (let subIndex = index; level > 0; --level) {
+        const sizes = tree[0] as VecNodeSizes;
+        if (!sizes) {
+            return treeGetRadix(tree, level, subIndex);
+        }
+        
+        const branchIndex = getBranchIndex(sizes, subIndex);
+        subIndex -= sizes[branchIndex];
+        tree = tree[branchIndex + 1];
+    }
+    
+    return tree[index & levelMask];
+}
+
+// FIXME: Deal with unbalanced subtrees:
 function treeWith<T>(tree: VecNode, level: number, i: number, v: T): VecNode {
     const newTree = [...tree];
     const indexInLevel = (i >> (level * indexBitsPerLevel)) & levelMask;
@@ -72,17 +128,7 @@ class Vec<T> {
     ) {}
     
     get(index: number): T {
-        let node: VecNode = this.root;
-        
-        for (let level = this.depth - 1, shift = level * indexBitsPerLevel;
-             level > 0;
-             --level, shift -= indexBitsPerLevel
-        ) {
-            const indexInLevel = (index >> shift) & levelMask;
-            node = node[indexInLevel + 1] as VecNode;
-        }
-        
-        return node[index & levelMask] as T;
+        return treeGet(this.root, this.depth - 1, index) as T;
     }
     
     with(i: number, v: T): Vec<T> {
