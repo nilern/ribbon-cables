@@ -60,7 +60,7 @@ function treeGet(tree: VecNode, level: number, index: number): any {
     for (let subIndex = index; level > 0; --level) {
         const sizes = tree[0] as VecNodeSizes;
         if (!sizes) {
-            return treeGetRadix(tree, level, subIndex);
+            return treeGetRadix(tree, level, index);
         }
         
         const branchIndex = getBranchIndex(sizes, subIndex);
@@ -71,18 +71,43 @@ function treeGet(tree: VecNode, level: number, index: number): any {
     return tree[index & levelMask];
 }
 
-// FIXME: Deal with unbalanced subtrees:
-function treeWith<T>(tree: VecNode, level: number, i: number, v: T): VecNode {
+function radixTreeWith<T>(tree: VecNode, level: number, i: number, v: T): VecNode {
     const newTree = [...tree];
     const indexInLevel = (i >> (level * indexBitsPerLevel)) & levelMask;
 
     if (isInternalNode(newTree, level + 1)) {
-        newTree[indexInLevel + 1] = treeWith(newTree[indexInLevel + 1], level - 1, i, v);
+        newTree[indexInLevel + 1] =
+            radixTreeWith(newTree[indexInLevel + 1], level - 1, i, v);
     } else {
         newTree[indexInLevel] = v;
     }
     
     return newTree;
+}
+
+function anyTreeWith<T>(
+    tree: VecNode, level: number, index: number, subIndex: number, v: T
+): VecNode {
+    if (level === 0) { // Leaf:
+        const newTree = [...tree];
+        newTree[index & levelMask] = v;
+        return newTree;
+    }
+
+    const sizes = tree[0] as VecNodeSizes;
+    if (!sizes) { // Balanced subtree:
+        return radixTreeWith(tree, level, index, v);
+    }
+    
+    const branchIndex = getBranchIndex(sizes, subIndex);
+    const newTree = [...tree];
+    newTree[branchIndex + 1] =
+        anyTreeWith(tree, level - 1, index, sizes[branchIndex], v);
+    return newTree;
+}
+
+function treeWith<T>(tree: VecNode, level: number, index: number, v: T): VecNode {
+    return anyTreeWith(tree, level, index, index, v);
 }
 
 function createBranch<T>(depth: number, v: T): VecNode {
