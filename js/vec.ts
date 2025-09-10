@@ -41,7 +41,7 @@ function getBranchIndex(sizes: ChildSizes, indexInTree: number): number {
     // Linear search:
     while (sizes[low] <= indexInTree) { ++low; }
     
-    return low - 1;
+    return low;
 }
 
 function treeGetRadix(tree: VecNode, level: number, index: number): any {
@@ -64,7 +64,7 @@ function treeGet(tree: VecNode, level: number, index: number): any {
         }
         
         const branchIndex = getBranchIndex(sizes, subIndex);
-        subIndex -= sizes[branchIndex];
+        subIndex -= branchIndex > 0 ? sizes[branchIndex - 1] : 0;
         tree = tree[branchIndex + 1];
     }
     
@@ -101,8 +101,8 @@ function anyTreeWith<T>(
     
     const branchIndex = getBranchIndex(sizes, subIndex);
     const newTree = [...tree];
-    newTree[branchIndex + 1] =
-        anyTreeWith(tree, level - 1, index, sizes[branchIndex], v);
+    const newSubIndex = branchIndex > 0 ? subIndex - sizes[branchIndex - 1] : subIndex;
+    newTree[branchIndex + 1] = anyTreeWith(tree, level - 1, index, newSubIndex, v);
     return newTree;
 }
 
