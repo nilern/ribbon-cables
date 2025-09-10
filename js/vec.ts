@@ -2,7 +2,7 @@ export {
     Vec
 };
 
-type ChildSizes = readonly number[];
+type ChildSizes = readonly number[]; // OPTIMIZE: Use typed array?
 type VecNodeSizes = ChildSizes | undefined;
 
 type VecNode = readonly any[];
