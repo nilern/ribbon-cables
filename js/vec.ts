@@ -45,12 +45,10 @@ function getBranchIndex(sizes: ChildSizes, indexInTree: number): number {
 }
 
 function treeGetRadix(tree: VecNode, level: number, index: number): any {
-    for (let shift = level * indexBitsPerLevel;
-         level > 0;
-         --level, shift -= indexBitsPerLevel
-    ) {
+    for (let shift = level * indexBitsPerLevel; level > 0; --level) {
         const indexInLevel = (index >> shift) & levelMask;
         tree = tree[indexInLevel + 1] as VecNode;
+        shift -= indexBitsPerLevel;
     }
     
     return tree[index & levelMask];
@@ -60,12 +58,12 @@ function treeGet(tree: VecNode, level: number, index: number): any {
     for (let subIndex = index; level > 0; --level) {
         const sizes = tree[0] as VecNodeSizes;
         if (!sizes) {
-            return treeGetRadix(tree, level, index);
+            return treeGetRadix(tree, level, subIndex);
         }
         
         const branchIndex = getBranchIndex(sizes, subIndex);
+        tree = tree[branchIndex + 1] as VecNode;
         subIndex -= branchIndex > 0 ? sizes[branchIndex - 1] : 0;
-        tree = tree[branchIndex + 1];
     }
     
     return tree[index & levelMask];
@@ -76,8 +74,11 @@ function radixTreeWith<T>(tree: VecNode, level: number, i: number, v: T): VecNod
     const indexInLevel = (i >> (level * indexBitsPerLevel)) & levelMask;
 
     if (isInternalNode(newTree, level + 1)) {
-        newTree[indexInLevel + 1] =
-            radixTreeWith(newTree[indexInLevel + 1], level - 1, i, v);
+        newTree[indexInLevel + 1] = radixTreeWith(
+            newTree[indexInLevel + 1],
+            level - 1,
+            i, v
+        );
     } else {
         newTree[indexInLevel] = v;
     }
@@ -85,29 +86,31 @@ function radixTreeWith<T>(tree: VecNode, level: number, i: number, v: T): VecNod
     return newTree;
 }
 
-function anyTreeWith<T>(
-    tree: VecNode, level: number, index: number, subIndex: number, v: T
-): VecNode {
+function anyTreeWith<T>(tree: VecNode, level: number, i: number, v: T): VecNode {
     if (level === 0) { // Leaf:
         const newTree = [...tree];
-        newTree[index & levelMask] = v;
+        newTree[i & levelMask] = v;
         return newTree;
     }
 
     const sizes = tree[0] as VecNodeSizes;
     if (!sizes) { // Balanced subtree:
-        return radixTreeWith(tree, level, index, v);
+        return radixTreeWith(tree, level, i, v);
     }
     
-    const branchIndex = getBranchIndex(sizes, subIndex);
+    const branchIndex = getBranchIndex(sizes, i);
     const newTree = [...tree];
-    const newSubIndex = branchIndex > 0 ? subIndex - sizes[branchIndex - 1] : subIndex;
-    newTree[branchIndex + 1] = anyTreeWith(tree, level - 1, index, newSubIndex, v);
+    newTree[branchIndex + 1] = anyTreeWith(
+        newTree[branchIndex + 1],
+        level - 1,
+        branchIndex > 0 ? i - sizes[branchIndex - 1] : i,
+        v
+    );
     return newTree;
 }
 
 function treeWith<T>(tree: VecNode, level: number, index: number, v: T): VecNode {
-    return anyTreeWith(tree, level, index, index, v);
+    return anyTreeWith(tree, level, index, v);
 }
 
 function createBranch<T>(depth: number, v: T): VecNode {
