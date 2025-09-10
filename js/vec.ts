@@ -127,11 +127,27 @@ function treeWithPushedLeaf<T>(tree: VecNode, depth: number, v: T): VecNode | un
         const lastChild = treeWithPushedLeaf(tree[lastBranchIndex], depth - 1, v);
         if (lastChild) {
             const newTree = [...tree];
+                
+            const sizes = tree[0] as VecNodeSizes;
+            if (sizes) {
+                const newSizes = [...sizes];
+                ++newSizes[lastBranchIndex];
+                newTree[0] = newSizes;
+            }
+            
             newTree[lastBranchIndex] = lastChild;
             return newTree;
         } else { // Did not fit in last existing child
             if (tree.length - 1 < branchingFactor) { // But this node can fit a new child tree
-                return [...tree, createBranch(depth - 1, v)];
+                const newTree = [...tree, createBranch(depth - 1, v)];
+                
+                const sizes = tree[0] as VecNodeSizes;
+                if (sizes) {
+                    const newSizes = [...sizes, sizes[lastBranchIndex] + 1];
+                    newTree[0] = newSizes;
+                }
+                
+                return newTree;
             } else {
                 return undefined;
             }
