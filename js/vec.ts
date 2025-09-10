@@ -55,15 +55,15 @@ function treeGetRadix(tree: VecNode, level: number, index: number): any {
 }
 
 function treeGet(tree: VecNode, level: number, index: number): any {
-    for (let subIndex = index; level > 0; --level) {
+    for (; level > 0; --level) {
         const sizes = tree[0] as VecNodeSizes;
         if (!sizes) {
-            return treeGetRadix(tree, level, subIndex);
+            return treeGetRadix(tree, level, index);
         }
         
-        const branchIndex = getBranchIndex(sizes, subIndex);
+        const branchIndex = getBranchIndex(sizes, index);
         tree = tree[branchIndex + 1] as VecNode;
-        subIndex -= branchIndex > 0 ? sizes[branchIndex - 1] : 0;
+        index -= branchIndex > 0 ? sizes[branchIndex - 1] : 0;
     }
     
     return tree[index & levelMask];
