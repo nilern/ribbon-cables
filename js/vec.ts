@@ -6,6 +6,7 @@ type ChildSizes = readonly number[]; // OPTIMIZE: Use typed array?
 type VecNodeSizes = ChildSizes | undefined;
 
 type VecNode = readonly any[];
+type VecNodeMut = any[];
 type InternalNode = readonly [VecNodeSizes, ...any[]];
 type InternalNodeMut = [VecNodeSizes, ...any[]];
 
@@ -123,6 +124,136 @@ function createBranch<T>(depth: number, v: T): VecNode {
     return branch as VecNode;
 }
 
+function computeSizes(node: InternalNode, depth: number): VecNodeSizes {
+    if (depth <= 2) {
+        return undefined;
+    }
+
+    let balanced = true;
+    const sizes = [];
+    
+    {
+        const limit = node.length;
+        let size = 0;
+        for (let i = 1; i < limit; ++i) {
+            const child = node[i];
+            
+            size += child.length - 1;
+            sizes.push(size);
+            
+            if (child[0]) {
+                balanced = false;
+            }
+        }
+    }
+    
+    return balanced ? undefined : sizes;
+}
+
+function mergedLeaves(left: VecNode, right: VecNode): VecNode {
+    const newRoot = [undefined] as InternalNodeMut;
+    let newNode = [] as VecNodeMut;
+    
+    function mergeSubtree(subtree: VecNode) {
+        for (const leaf of subtree) {
+            if (newNode.length === branchingFactor) {
+                newRoot.push(newNode);
+                newNode = [];
+            }
+            
+            newNode.push(leaf);
+        }
+    }
+    
+    mergeSubtree(left);
+    
+    mergeSubtree(right);
+    
+    if (newNode.length > 0) {
+        newRoot.push(newNode);
+    }
+    
+    return newRoot;
+}
+
+function mergeRebalance(left: VecNode, center: VecNode, right: VecNode, depth: number
+): VecNode {
+    const newRoot = [undefined] as InternalNodeMut;
+    let newSubtree = [undefined] as InternalNodeMut;
+    let newNode = (depth > 2 ? [undefined] : []) as VecNodeMut;
+    
+    function checkSubtree() {
+        if (newSubtree.length > branchingFactor) {
+            newSubtree[0] = computeSizes(newSubtree, depth);
+            newRoot.push(newSubtree);
+            newSubtree = [undefined];
+        }
+    }
+    
+    const mergeSubtree = depth > 2
+        ? (subtree: VecNode) => {
+            const limit = subtree.length;
+            for (let i = 1; i < limit; ++i) {
+                if (newNode.length > branchingFactor) {
+                    checkSubtree();
+                    
+                    newNode[0] = computeSizes(
+                        newNode as unknown as InternalNode,
+                        depth - 1
+                    );
+                    newSubtree.push(newNode);
+                    newNode = [undefined];
+                }
+                
+                newNode.push(subtree[i]);
+            }
+        }
+        : (subtree: VecNode) => {
+            const limit = subtree.length;
+            for (let i = 0; i < limit; ++i) {
+                if (newNode.length === branchingFactor) {
+                    checkSubtree();
+                    
+                    newSubtree.push(newNode);
+                    newNode = [];
+                }
+                
+                newNode.push(subtree[i]);
+            }
+        };
+    
+    {
+        const limit = left.length - 1;
+        for (let i = 1; i < limit; ++i) {
+            mergeSubtree(left[i]);
+        }
+    }
+    
+    center.forEach(mergeSubtree);
+    
+    {
+        const limit = right.length;
+        for (let i = 2; i < limit; ++i) {
+            mergeSubtree(right[i]);
+        }
+    }
+    
+    newSubtree[0] = computeSizes(newSubtree, depth);
+    newRoot.push(newSubtree);
+    newRoot[0] = computeSizes(newRoot, depth + 1);
+    
+    return newRoot;
+}
+
+function mergedTrees(left: VecNode, right: VecNode, depth: number): VecNode {
+    if (depth > 1) {
+        const merged = mergedTrees(left[left.length - 1], right[1], depth - 1);
+        return mergeRebalance(left, merged, right, depth);
+    } else {
+        return mergedLeaves(left, right);
+    }
+}
+
 // Returns `undefined` on overflow:
 function treeWithPushedLeaf<T>(tree: VecNode, depth: number, v: T): VecNode | undefined {
     if (isInternalNode(tree, depth)) {
@@ -142,7 +273,7 @@ function treeWithPushedLeaf<T>(tree: VecNode, depth: number, v: T): VecNode | un
             return newTree;
         } else { // Did not fit in last existing child
             if (tree.length - 1 < branchingFactor) { // But this node can fit a new child tree
-                const newTree = [...tree, createBranch(depth - 1, v)];
+               const newTree = [...tree, createBranch(depth - 1, v)];
                 
                 const sizes = tree[0] as VecNodeSizes;
                 if (sizes) {
@@ -196,6 +327,26 @@ class Vec<T> {
                 this.length + 1,
                 this.depth + 1,
                 [undefined, this.root, createBranch(this.depth, v)] as InternalNode
+            );
+        }
+    }
+    
+    cat(that: Vec<T>): Vec<T> {
+        // FIXME: Depths may actually be different:
+        const newTree = mergedTrees(this.root, that.root, this.depth);
+        const maxDepth = Math.max(this.depth, that.depth);
+        const newLength = this.length + that.length;
+        if (newTree.length > 2) {
+            return new Vec(
+                newLength,
+                maxDepth + 1,
+                newTree
+            );
+        } else {
+            return new Vec(
+                newLength,
+                maxDepth,
+                newTree[1]
             );
         }
     }
