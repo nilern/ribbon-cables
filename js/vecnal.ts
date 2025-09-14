@@ -258,11 +258,10 @@ class MappedVecnal<U, T> extends CheckingSubscribingSubscribeableVecnal<U>
     ) {
         super(equals);
         
-        this.vs = [];
-        const len = input.size();
-        for (let i = 0; i < len; ++i) {
-            this.vs.push(f(input.at(i)));
-        }
+        this.vs = input.reduce<typeof this.vs>((vs, v) => {
+            vs.push(f(v));
+            return vs;
+        }, []);
     }
     
     size(): number {
@@ -590,18 +589,15 @@ class ConcatVecnal<T> extends SubscribingSubscribeableVecnal<T> {
         this.offsets = [];
         this.depSubscribers = [];
         {
-            const len = deps.length;
             let offset = 0;
-            for (let i = 0; i < len; ++i) {
-                const dep = this.deps[i];
-            
+            this.deps.forEach((dep, i) => {
                 dep.reduce((acc, v) => this.vs.push(v), 0);
                 
                 this.offsets.push(offset);
                 offset += dep.size();
                 
                 this.depSubscribers.push(new ConcatVecnalDepSubscriber(this, i));
-            }
+            });
         }
     }
     
