@@ -108,11 +108,13 @@ class SourceVecnal<T> extends Vecnal<T> implements Spliceable<T> {
     
     constructor(
         private readonly equals: (x: T, y: T) => boolean,
-        vs: T[] // TODO: Immutable vector
+        vs: Iterable<T>
     ) {
         super();
         
-        this.vs = [...vs];
+        const builder = [];
+        for (const v of vs) { builder.push(v); }
+        this.vs = builder;
     }
     
     size(): number { return this.vs.length; }
@@ -176,7 +178,8 @@ class SourceVecnal<T> extends Vecnal<T> implements Spliceable<T> {
     }
 }
 
-function source<T>(equals: (x: T, y: T) => boolean, initVals: T[]): Vecnal<T> & Spliceable<T> {
+function source<T>(equals: (x: T, y: T) => boolean, initVals: Iterable<T>
+): Vecnal<T> & Spliceable<T> {
     return new SourceVecnal(equals, initVals);
 }
 
