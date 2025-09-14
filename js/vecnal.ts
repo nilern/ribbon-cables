@@ -71,14 +71,16 @@ abstract class Vecnal<T> implements IVecnal<T> {
 }
 
 class ConstVecnal<T> extends Vecnal<T> {
-    private readonly vs: T[]; // TODO: Immutable vector
+    private readonly vs: readonly T[];
     
     constructor(
-        vs: T[] // TODO: Immutable vector
+        vs: Iterable<T>
     ) {
         super();
         
-        this.vs = [...vs];
+        const builder = [];
+        for (const v of vs) { builder.push(v); }
+        this.vs = builder;
     }
     
     size(): number { return this.vs.length; }
@@ -98,7 +100,7 @@ class ConstVecnal<T> extends Vecnal<T> {
     notifySubstitute(_: number, _1: T) {}
 }
 
-function stable<T>(vs: T[]): Vecnal<T> { return new ConstVecnal(vs); }
+function stable<T>(vs: Iterable<T>): Vecnal<T> { return new ConstVecnal(vs); }
 
 class SourceVecnal<T> extends Vecnal<T> implements Spliceable<T> {
     private readonly vs: T[]; // OPTIMIZE: RRB vector
