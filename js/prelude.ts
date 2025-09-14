@@ -35,10 +35,12 @@ interface Reducible<T> {
     reduce: <U>(f: (acc: U, v: T) => U, acc: U) => U;
 }
 
-class ImmArrayAdapter<T> implements Sized, Indexed<T> {
+class ImmArrayAdapter<T> implements Reducible<T>, Sized, Indexed<T> {
     constructor(
-        private readonly vs: T[]
+        private readonly vs: readonly T[]
     ) {}
+    
+    reduce<U>(f: (acc: U, v: T) => U, acc: U): U { return this.vs.reduce(f, acc); }
     
     size(): number { return this.vs.length; }
     

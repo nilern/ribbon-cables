@@ -1,7 +1,7 @@
 export {model, controller};
 
 import type {Reset} from "./prelude.js";
-import {eq, str} from "./prelude.js";
+import {ImmArrayAdapter, eq, str} from "./prelude.js";
 import type {Signal} from "./signal.js";
 import * as signal from "./signal.js";
 import type {Vecnal} from "./vecnal.js";
@@ -274,13 +274,10 @@ function todoFilter(label: string, path: string, isSelected: Signal<boolean>): N
              label));
 }
 
-function todosFooter(ctrl: Ctrl, todos: Vecnal<Todo>, filterS: Signal<Filter>): Node {
+function todosFooter(ctrl: Ctrl, todoCount: Signal<number>, filterS: Signal<Filter>): Node {
     function onClearCompleteds(_: Event) {
         ctrl.clearCompleteds();
     }
-    
-    // OPTIMIZE: Add signal versions of `size()` and `at()` in addition to `reduce()`:
-    const todoCount = todos.reduceS(eq, (acc, _) => acc + 1, signal.stable(0));
     
     const allIsSelected: Signal<boolean> = filterS.map(eq, (v) => v === "all");
     const activeIsSelected: Signal<boolean> = filterS.map(eq, (v) => v === "active");
@@ -301,16 +298,17 @@ function todosFooter(ctrl: Ctrl, todos: Vecnal<Todo>, filterS: Signal<Filter>): 
 }
 
 function createUI(ctrl: Ctrl, todoS: Signal<Todo[]>, filterS: Signal<Filter>): Element {
-    const visibleTodoS: Signal<Todo[]> = todoS.map2(eq,
-        (todos, filter) => todos.filter(filterFn(filter)),
+    const visibleTodoS: Signal<ImmArrayAdapter<Todo>> = todoS.map2(eq,
+        (todos, filter) => new ImmArrayAdapter(todos.filter(filterFn(filter))), // OPTIMIZE
         filterS);
+    const todoCount: Signal<number> = todoS.map(eq, (todos) => todos.length);
     
     return el("section", {"class": "todoapp"},
         todosHeader(ctrl),
                          
         todoList(ctrl, vecnal.imux(eq, visibleTodoS)),
                 
-        todosFooter(ctrl, vecnal.imux(eq, todoS), filterS));
+        todosFooter(ctrl, todoCount, filterS));
 }
 
 const routes = {

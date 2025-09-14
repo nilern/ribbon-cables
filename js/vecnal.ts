@@ -9,7 +9,7 @@ export {
 };
 
 import type {Reset, Sized, Indexed, Spliceable, Reducible} from "./prelude.js";
-import {ImmArrayAdapter, eq} from "./prelude.js";
+import {eq} from "./prelude.js";
 import * as diff from "./diff.js"
 import type {Subscriber} from "./signal.js";
 import * as signal from "./signal.js";
@@ -987,27 +987,30 @@ class ViewVecnal<T> extends Vecnal<Signal<T>> implements IndexedSubscriber<T> {
 class ImuxVecnal<T> extends Vecnal<T> {
     private readonly subscribers = new Set<IndexedSubscriber<T>>();
     private readonly vs: T[];
-    private readonly inputSubscriber: Subscriber<T[]>;
+    private readonly inputSubscriber: Subscriber<Sized & Indexed<T>>;
     
     constructor(
         private readonly equals: (x: T, y: T) => boolean,
-        private readonly input: Signal<T[]>
+        private readonly input: Signal<Reducible<T> & Sized & Indexed<T>>
     ) {
         super();
         
-        this.vs = input.ref();
+        this.vs = input.ref().reduce<T[]>((builder, v) => {
+            builder.push(v);
+            return builder;
+        }, []);
         
         this.inputSubscriber = (oldVs, newVs) => {
-            const edits = diff.diff(new ImmArrayAdapter(oldVs), new ImmArrayAdapter(newVs), this.equals);
+            const edits = diff.diff(oldVs, newVs, this.equals);
             this.patch(newVs, edits);
         };
     }
     
-    private patch(newVs: T[], edits: diff.EditScript) {
+    private patch(newVs: Sized & Indexed<T>, edits: diff.EditScript) {
         for (const edit of edits) {
             if (edit instanceof diff.Insert) {
                 const i = edit.index;
-                const v = newVs[i];
+                const v = newVs.at(i);
                 this.vs.splice(i, 0, v);
                 this.notifyInsert(i, v);
             } else if (edit instanceof diff.Delete) {
@@ -1017,7 +1020,7 @@ class ImuxVecnal<T> extends Vecnal<T> {
             } else if (edit instanceof diff.Substitute) {
                 const i = edit.index;
                 const u = this.vs[i];
-                const v = newVs[i];
+                const v = newVs.at(i);
                 this.vs[i] = v;
                 this.notifySubstitute(i, u, v);
             } else {
@@ -1031,7 +1034,7 @@ class ImuxVecnal<T> extends Vecnal<T> {
             return this.vs.length;
         } else {
             // If `this` has no subscribers it does not watch deps either so `this.vs` could be stale:
-            return this.input.ref().length;
+            return this.input.ref().size();
             // OPTIMIZE: This combined with dep `reduce()`:s in ctor makes signal graph construction
             // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
             // would result from eagerly subscribing in ctor...
@@ -1043,7 +1046,7 @@ class ImuxVecnal<T> extends Vecnal<T> {
             return this.vs[index];
         } else {
             // If `this` has no subscribers it does not watch deps either so `this.vs` could be stale:
-            return this.input.ref()[index];
+            return this.input.ref().at(index);
             // OPTIMIZE: This combined with dep `reduce()`:s in ctor makes signal graph construction
             // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
             // would result from eagerly subscribing in ctor...
@@ -1102,7 +1105,9 @@ class ImuxVecnal<T> extends Vecnal<T> {
     }
 }
 
-function imux<T>(equals: (x: T, y: T) => boolean, input: Signal<T[]>): Vecnal<T> {
+function imux<T>(equals: (x: T, y: T) => boolean,
+    input: Signal<Reducible<T> & Sized & Indexed<T>>
+): Vecnal<T> {
     return new ImuxVecnal(equals, input);
 }
 
