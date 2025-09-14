@@ -107,6 +107,20 @@ abstract class SubscribeableVecnal<T> extends Vecnal<T> {
     }
 }
 
+abstract class CheckingSubscribeableVecnal<T> extends SubscribeableVecnal<T> {
+    constructor(
+        private readonly equals: (x: T, y: T) => boolean
+    ) {
+        super();
+    }
+    
+    notifySubstitute(i: number, v: T, u: T) {
+        if (!this.equals(v, u)) {
+            super.notifySubstitute(i, v, u);
+        }
+    }
+}
+
 abstract class SubscribingSubscribeableVecnal<T> extends SubscribeableVecnal<T> {
     abstract subscribeToDeps(): void;
     abstract unsubscribeFromDeps(): void;
@@ -180,14 +194,14 @@ class ConstVecnal<T> extends Vecnal<T> {
 
 function stable<T>(vs: Iterable<T>): Vecnal<T> { return new ConstVecnal(vs); }
 
-class SourceVecnal<T> extends SubscribeableVecnal<T> implements Spliceable<T> {
+class SourceVecnal<T> extends CheckingSubscribeableVecnal<T> implements Spliceable<T> {
     private readonly vs: T[]; // OPTIMIZE: RRB vector
     
     constructor(
-        private readonly equals: (x: T, y: T) => boolean,
+        equals: (x: T, y: T) => boolean,
         vs: Iterable<T>
     ) {
-        super();
+        super(equals);
         
         const builder = [];
         for (const v of vs) { builder.push(v); }
@@ -224,12 +238,6 @@ class SourceVecnal<T> extends SubscribeableVecnal<T> implements Spliceable<T> {
         this.notifyRemove(i);
     
         return v;
-    }
-    
-    notifySubstitute(i: number, v: T, u: T) {
-        if (!this.equals(v, u)) {
-            super.notifySubstitute(i, v, u);
-        }
     }
 }
 
