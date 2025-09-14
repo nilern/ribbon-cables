@@ -132,6 +132,22 @@ abstract class SubscribingSubscribeableVecnal<T> extends SubscribeableVecnal<T> 
     }
 }
 
+abstract class CheckingSubscribingSubscribeableVecnal<T>
+    extends SubscribingSubscribeableVecnal<T>
+{
+    constructor(
+        private readonly equals: (x: T, y: T) => boolean
+    ) {
+        super();
+    }
+
+    notifySubstitute(i: number, v: T, u: T) {
+        if (!this.equals(v, u)) {
+            super.notifySubstitute(i, v, u);
+        }
+    }
+}
+
 class ConstVecnal<T> extends Vecnal<T> {
     private readonly vs: readonly T[];
     
@@ -222,17 +238,17 @@ function source<T>(equals: (x: T, y: T) => boolean, initVals: Iterable<T>
     return new SourceVecnal(equals, initVals);
 }
 
-class MappedVecnal<U, T> extends SubscribingSubscribeableVecnal<U>
+class MappedVecnal<U, T> extends CheckingSubscribingSubscribeableVecnal<U>
     implements IndexedSubscriber<T>
 {
     private readonly vs: U[]; // OPTIMIZE: RRB vector
 
     constructor(
-        private readonly equals: (x: U, y: U) => boolean,
+        equals: (x: U, y: U) => boolean,
         private readonly f: (v: T) => U,
         private readonly input: Vecnal<T>
     ) {
-        super();
+        super(equals);
         
         this.vs = [];
         const len = input.size();
@@ -310,12 +326,6 @@ class MappedVecnal<U, T> extends SubscribingSubscribeableVecnal<U>
         const u = this.f(v);
         
         this.notifySubstitute(i, oldU, u);
-    }
-    
-    notifySubstitute(i: number, v: U, u: U) { // TODO: DRY (wrt. e.g. `SourceVecnal`)
-        if (!this.equals(v, u)) {
-            super.notifySubstitute(i, v, u);
-        }
     }
 }
 
