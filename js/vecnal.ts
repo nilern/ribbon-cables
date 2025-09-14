@@ -118,11 +118,11 @@ abstract class SubscribingSubscribeableVecnal<T> extends SubscribeableVecnal<T> 
             this.subscribeToDeps();
         }
         
-        this.subscribers.add(subscriber);
+        super.iSubscribe(subscriber);
     }
     
     iUnsubscribe(subscriber: IndexedSubscriber<T>) {
-        this.subscribers.delete(subscriber);
+        super.iUnsubscribe(subscriber);
         
         if (this.subscribers.size === 0) {
             /* Watcher count just became zero, but watchees still have pointers to `this`.
