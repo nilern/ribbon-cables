@@ -77,6 +77,36 @@ abstract class Vecnal<T> implements IVecnal<T> {
     }
 }
 
+abstract class SubscribeableVecnal<T> extends Vecnal<T> {
+    protected readonly subscribers = new Set<IndexedSubscriber<T>>();
+    
+    iSubscribe(subscriber: IndexedSubscriber<T>) {
+        this.subscribers.add(subscriber);
+    }
+    
+    iUnsubscribe(subscriber: IndexedSubscriber<T>) {
+        this.subscribers.delete(subscriber);
+    }
+    
+    notifySubstitute(i: number, v: T, u: T) {
+        for (const subscriber of this.subscribers) {
+            subscriber.onSubstitute(i, u);
+        }
+    }
+    
+    notifyInsert(i: number, v: T) {
+        for (const subscriber of this.subscribers) {
+            subscriber.onInsert(i, v);
+        }
+    }
+    
+    notifyRemove(i: number) {
+        for (const subscriber of this.subscribers) {
+            subscriber.onRemove(i);
+        }
+    }
+}
+
 class ConstVecnal<T> extends Vecnal<T> {
     private readonly vs: readonly T[];
     
@@ -109,9 +139,8 @@ class ConstVecnal<T> extends Vecnal<T> {
 
 function stable<T>(vs: Iterable<T>): Vecnal<T> { return new ConstVecnal(vs); }
 
-class SourceVecnal<T> extends Vecnal<T> implements Spliceable<T> {
+class SourceVecnal<T> extends SubscribeableVecnal<T> implements Spliceable<T> {
     private readonly vs: T[]; // OPTIMIZE: RRB vector
-    private readonly subscribers = new Set<IndexedSubscriber<T>>();
     
     constructor(
         private readonly equals: (x: T, y: T) => boolean,
@@ -156,31 +185,9 @@ class SourceVecnal<T> extends Vecnal<T> implements Spliceable<T> {
         return v;
     }
     
-    iSubscribe(subscriber: IndexedSubscriber<T>) {
-        this.subscribers.add(subscriber);
-    }
-    
-    iUnsubscribe(subscriber: IndexedSubscriber<T>) {
-        this.subscribers.delete(subscriber);
-    }
-    
     notifySubstitute(i: number, v: T, u: T) {
         if (!this.equals(v, u)) {
-            for (const subscriber of this.subscribers) {
-                subscriber.onSubstitute(i, u);
-            }
-        }
-    }
-    
-    notifyInsert(i: number, v: T) {
-        for (const subscriber of this.subscribers) {
-            subscriber.onInsert(i, v);
-        }
-    }
-    
-    notifyRemove(i: number) {
-        for (const subscriber of this.subscribers) {
-            subscriber.onRemove(i);
+            super.notifySubstitute(i, v, u);
         }
     }
 }
