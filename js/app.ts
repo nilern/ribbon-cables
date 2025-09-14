@@ -101,8 +101,9 @@ function filterFn(filter: Filter): (todo: Todo) => boolean {
         const exhaust: never = filter;
         return exhaust;
     }
-} 
+}
 
+// Global for REPL testing:
 const filterS: Signal<Filter> & Reset<Filter> = signal.source<Filter>(eq, "all");
 
 // TODO: Limited versions for different components:
@@ -311,6 +312,7 @@ function createUI(ctrl: Ctrl, todoS: Signal<Todo[]>, filterS: Signal<Filter>): E
         todosFooter(ctrl, todoCount, filterS));
 }
 
+// TODO: Do not hammer `filterS` directly from here:
 const routes = {
     "/": () => filterS.reset("all"),
     "/active": () => filterS.reset("active"),
