@@ -3,6 +3,7 @@ export type {
 };
 export {
     Signal,
+    CheckingSubscribingSubscribeableSignal,
     stable, source
 };
 
@@ -42,6 +43,79 @@ abstract class Signal<T> implements ISignal<T> {
     }
 }
 
+abstract class SubscribeableSignal<T> extends Signal<T> {
+    protected readonly subscribers = new Set<Subscriber<T>>();
+    
+    subscribe(subscriber: Subscriber<T>) {
+        this.subscribers.add(subscriber);
+    }
+    
+    unsubscribe(subscriber: Subscriber<T>) {
+        this.subscribers.delete(subscriber);
+    }
+    
+    notify(v: T, u: T) {
+        for (const subscriber of this.subscribers) {
+            subscriber(v, u);
+        }
+    }
+}
+
+abstract class CheckingSubscribeableSignal<T> extends SubscribeableSignal<T> {
+    constructor(
+        private readonly equals: (x: T, y: T) => boolean
+    ) {
+        super();
+    }
+    
+    notify(v: T, u: T) {
+        if (!this.equals(v, u)) {
+            super.notify(v, u);
+        }
+    }
+}
+
+abstract class SubscribingSubscribeableSignal<T> extends SubscribeableSignal<T> {
+    abstract subscribeToDeps(): void;
+    abstract unsubscribeFromDeps(): void;
+    
+    subscribe(subscriber: Subscriber<T>) {
+        if (this.subscribers.size === 0) {
+            /* To avoid space leaks and 'unused' updates to `this` only start watching 
+             * dependencies when `this` gets its first watcher: */
+            this.subscribeToDeps();
+        }
+        
+        super.subscribe(subscriber);
+    }
+    
+    unsubscribe(subscriber: Subscriber<T>) {
+        super.unsubscribe(subscriber);
+        
+        if (this.subscribers.size === 0) {
+            /* Watcher count just became zero, but watchees still have pointers to `this`. 
+             * Remove those to avoid space leaks and 'unused' updates to `this`: */
+            this.unsubscribeFromDeps();
+        }
+    }
+}
+
+abstract class CheckingSubscribingSubscribeableSignal<T>
+    extends SubscribingSubscribeableSignal<T>
+{
+    constructor(
+        private readonly equals: (x: T, y: T) => boolean
+    ) {
+        super();
+    }
+    
+    notify(v: T, u: T) {
+        if (!this.equals(v, u)) {
+            super.notify(v, u);
+        }
+    }
+}
+
 class ConstSignal<T> extends Signal<T> {
     constructor(
         private readonly v: T
@@ -60,14 +134,12 @@ class ConstSignal<T> extends Signal<T> {
 
 function stable<T>(v: T): Signal<T> { return new ConstSignal(v); }
 
-class SourceSignal<T> extends Signal<T> implements Reset<T> {
-    private readonly subscribers = new Set<Subscriber<T>>();
-    
+class SourceSignal<T> extends CheckingSubscribeableSignal<T> implements Reset<T> {
     constructor(
-        private readonly equals: (x: T, y: T) => boolean,
+        equals: (x: T, y: T) => boolean,
         private v: T
     ) {
-        super();
+        super(equals);
     }
     
     ref(): T { return this.v; }
@@ -80,40 +152,25 @@ class SourceSignal<T> extends Signal<T> implements Reset<T> {
         
         return v;
     }
-    
-    subscribe(subscriber: Subscriber<T>) {
-        this.subscribers.add(subscriber);
-    }
-    
-    unsubscribe(subscriber: Subscriber<T>) {
-        this.subscribers.delete(subscriber);
-    }
-    
-    notify(v: T, u: T) {
-        if (!this.equals(v, u)) {
-            for (const subscriber of this.subscribers) {
-                subscriber(v, u);
-            }
-        }
-    }
 }
 
 function source<T>(equals: (x: T, y: T) => boolean, initVal: T): Signal<T> & Reset<T> {
     return new SourceSignal(equals, initVal);
 }
 
-class MappedSignal<U, T extends Signal<any>[]> extends Signal<U> {
-    private readonly subscribers = new Set<Subscriber<U>>();
+class MappedSignal<U, T extends Signal<any>[]>
+    extends CheckingSubscribingSubscribeableSignal<U>
+{
     private readonly deps: T;
     private readonly depSubscribers: Subscriber<any>[] = [];
     private v: U;
     
     constructor(
-        private readonly equals: (x: U, y: U) => boolean,
+        equals: (x: U, y: U) => boolean,
         private readonly f: (...depVals: any[]) => U,
         ...deps: T
     ) {
-        super();
+        super(equals);
         
         this.deps = deps;
         
@@ -141,35 +198,15 @@ class MappedSignal<U, T extends Signal<any>[]> extends Signal<U> {
         return this.v;
     }
     
-    subscribe(subscriber: Subscriber<U>) {
-        if (this.subscribers.size === 0) {
-            // To avoid space leaks and 'unused' updates to `this` only start watching dependencies
-            // when `this` gets its first watcher:
-            for (let i = 0; i < this.deps.length; ++i) {
-                this.deps[i].subscribe(this.depSubscribers[i]);
-            }
-        }
-        
-        this.subscribers.add(subscriber);
-    }
-    
-    unsubscribe(subscriber: Subscriber<U>) {
-        this.subscribers.delete(subscriber);
-        
-        if (this.subscribers.size === 0) {
-            // Watcher count just became zero, but watchees still have pointers to `this` (via
-            // `depSubscriber`). Remove those to avoid space leaks and 'unused' updates to `this`:
-            for (let i = 0; i < this.deps.length; ++i) {
-                this.deps[i].unsubscribe(this.depSubscribers[i]);
-            }
+    subscribeToDeps() {
+        for (let i = 0; i < this.deps.length; ++i) {
+            this.deps[i].subscribe(this.depSubscribers[i]);
         }
     }
     
-    notify(v: U, u: U) { // TODO: DRY wrt. `SourceSignal::notify`
-        if (!this.equals(v, u)) {
-            for (const subscriber of this.subscribers) {
-                subscriber(v, u);
-            }
+    unsubscribeFromDeps() {
+        for (let i = 0; i < this.deps.length; ++i) {
+            this.deps[i].unsubscribe(this.depSubscribers[i]);
         }
     }
 }

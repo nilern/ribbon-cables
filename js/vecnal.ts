@@ -13,7 +13,7 @@ import {eq} from "./prelude.js";
 import * as diff from "./diff.js"
 import type {Subscriber} from "./signal.js";
 import * as signal from "./signal.js";
-import {Signal} from "./signal.js";
+import {Signal, CheckingSubscribingSubscribeableSignal} from "./signal.js";
 
 interface IndexedSubscriber<T> {
     onInsert: (i: number, v: T) => void;
@@ -705,18 +705,19 @@ class SingleElementVecnal<T> extends SubscribingSubscribeableVecnal<T> {
 
 function lift<T>(signal: Signal<T>): Vecnal<T> { return new SingleElementVecnal(signal); }
 
-class ReducedSignal<U, T> extends Signal<U> implements IndexedSubscriber<T> {
+class ReducedSignal<U, T> extends CheckingSubscribingSubscribeableSignal<U>
+    implements IndexedSubscriber<T>
+{
     private v: U;
-    private readonly subscribers = new Set<Subscriber<U>>();
     private readonly depSubscriber: Subscriber<U>;
 
     constructor(
-        private readonly equals: (x: U, y: U) => boolean,
+        equals: (x: U, y: U) => boolean,
         private readonly f: (acc: U, v: T) => U,
         private readonly inputAcc: Signal<U>,
         private readonly inputColl: Vecnal<T>
     ) {
-        super();
+        super(equals);
         
         this.v = inputColl.reduce(f, inputAcc.ref());
         this.depSubscriber = (_, newAcc) => {
@@ -739,34 +740,14 @@ class ReducedSignal<U, T> extends Signal<U> implements IndexedSubscriber<T> {
         return this.v;
     }
     
-    subscribe(subscriber: Subscriber<U>) {
-        if (this.subscribers.size === 0) {
-            // To avoid space leaks and 'unused' updates to `this` only start watching dependencies
-            // when `this` gets its first watcher:
-            this.inputAcc.subscribe(this.depSubscriber);
-            this.inputColl.iSubscribe(this);
-        }
-        
-        this.subscribers.add(subscriber);
+    subscribeToDeps() {
+        this.inputAcc.subscribe(this.depSubscriber);
+        this.inputColl.iSubscribe(this);
     }
     
-    unsubscribe(subscriber: Subscriber<U>) {
-        this.subscribers.delete(subscriber);
-        
-        if (this.subscribers.size === 0) {
-            // Watcher count just became zero, but watchees still have pointers to `this` (via
-            // `depSubscriber`). Remove those to avoid space leaks and 'unused' updates to `this`:
-            this.inputAcc.unsubscribe(this.depSubscriber);
-            this.inputColl.iUnsubscribe(this);
-        }
-    }
-    
-    notify(v: U, u: U) { // TODO: DRY wrt. `SourceSignal::notify`
-        if (!this.equals(v, u)) {
-            for (const subscriber of this.subscribers) {
-                subscriber(v, u);
-            }
-        }
+    unsubscribeFromDeps() {
+        this.inputAcc.unsubscribe(this.depSubscriber);
+        this.inputColl.iUnsubscribe(this);
     }
     
     private onChange() {
