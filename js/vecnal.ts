@@ -107,6 +107,31 @@ abstract class SubscribeableVecnal<T> extends Vecnal<T> {
     }
 }
 
+abstract class SubscribingSubscribeableVecnal<T> extends SubscribeableVecnal<T> {
+    abstract subscribeToDeps(): void;
+    abstract unsubscribeFromDeps(): void;
+
+    iSubscribe(subscriber: IndexedSubscriber<T>) {
+        if (this.subscribers.size === 0) {
+            /* To avoid space leaks and 'unused' updates to `this` only start watching
+             * dependencies when `this` gets its first watcher: */
+            this.subscribeToDeps();
+        }
+        
+        this.subscribers.add(subscriber);
+    }
+    
+    iUnsubscribe(subscriber: IndexedSubscriber<T>) {
+        this.subscribers.delete(subscriber);
+        
+        if (this.subscribers.size === 0) {
+            /* Watcher count just became zero, but watchees still have pointers to `this`.
+             * Remove those to avoid space leaks and 'unused' updates to `this`: */
+            this.unsubscribeFromDeps();
+        }
+    }
+}
+
 class ConstVecnal<T> extends Vecnal<T> {
     private readonly vs: readonly T[];
     
@@ -197,9 +222,10 @@ function source<T>(equals: (x: T, y: T) => boolean, initVals: Iterable<T>
     return new SourceVecnal(equals, initVals);
 }
 
-class MappedVecnal<U, T> extends Vecnal<U> implements IndexedSubscriber<T> {
+class MappedVecnal<U, T> extends SubscribingSubscribeableVecnal<U>
+    implements IndexedSubscriber<T>
+{
     private readonly vs: U[]; // OPTIMIZE: RRB vector
-    private readonly subscribers = new Set<IndexedSubscriber<U>>();
 
     constructor(
         private readonly equals: (x: U, y: U) => boolean,
@@ -262,25 +288,9 @@ class MappedVecnal<U, T> extends Vecnal<U> implements IndexedSubscriber<T> {
         return this.vs.reduce(f, acc);
     }
     
-    iSubscribe(subscriber: IndexedSubscriber<U>) {
-        if (this.subscribers.size === 0) {
-            // To avoid space leaks and 'unused' updates to `this` only start watching dependencies
-            // when `this` gets its first watcher:
-            this.input.iSubscribe(this);
-        }
-        
-        this.subscribers.add(subscriber);
-    }
+    subscribeToDeps() { this.input.iSubscribe(this); }
     
-    iUnsubscribe(subscriber: IndexedSubscriber<U>) {
-        this.subscribers.delete(subscriber);
-        
-        if (this.subscribers.size === 0) {
-            // Watcher count just became zero, but watchees still have pointers to `this` (via
-            // `depSubscriber`). Remove those to avoid space leaks and 'unused' updates to `this`:
-            this.input.iUnsubscribe(this);
-        }
-    }
+    unsubscribeFromDeps() { this.input.iUnsubscribe(this); }
     
     onInsert(i: number, v: T) {
         const u = this.f(v);
@@ -304,32 +314,19 @@ class MappedVecnal<U, T> extends Vecnal<U> implements IndexedSubscriber<T> {
     
     notifySubstitute(i: number, v: U, u: U) { // TODO: DRY (wrt. e.g. `SourceVecnal`)
         if (!this.equals(v, u)) {
-            for (const subscriber of this.subscribers) {
-                subscriber.onSubstitute(i, u);
-            }
-        }
-    }
-    
-    notifyInsert(i: number, v: U) { // TODO: DRY (wrt. e.g. `SourceVecnal`)
-        for (const subscriber of this.subscribers) {
-            subscriber.onInsert(i, v);
-        }
-    }
-    
-    notifyRemove(i: number) { // TODO: DRY (wrt. e.g. `SourceVecnal`)
-        for (const subscriber of this.subscribers) {
-            subscriber.onRemove(i);
+            super.notifySubstitute(i, v, u);
         }
     }
 }
 
-class FilteredVecnal<T> extends Vecnal<T> implements IndexedSubscriber<T> {
+class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
+    implements IndexedSubscriber<T>
+{
     // C style non-index should make `indexMapping` an array of 32-bit ints at runtime:
     private static readonly NO_INDEX = -1;
 
     private readonly vs: T[]; // OPTIMIZE: RRB vector
     private readonly indexMapping: number[];
-    private readonly subscribers = new Set<IndexedSubscriber<T>>();
 
     constructor(
         private readonly f: (v: T) => boolean,
@@ -423,25 +420,9 @@ class FilteredVecnal<T> extends Vecnal<T> implements IndexedSubscriber<T> {
         return this.vs[i];
     }
     
-    iSubscribe(subscriber: IndexedSubscriber<T>) { // TODO: DRY (wrt. e.g. `MappedVecnal`)
-        if (this.subscribers.size === 0) {
-            // To avoid space leaks and 'unused' updates to `this` only start watching dependencies
-            // when `this` gets its first watcher:
-            this.input.iSubscribe(this);
-        }
-        
-        this.subscribers.add(subscriber);
-    }
+    subscribeToDeps() { this.input.iSubscribe(this); }
     
-    iUnsubscribe(subscriber: IndexedSubscriber<T>) { // TODO: DRY (wrt. e.g. `MappedVecnal`)
-        this.subscribers.delete(subscriber);
-        
-        if (this.subscribers.size === 0) {
-            // Watcher count just became zero, but watchees still have pointers to `this` (via
-            // `depSubscriber`). Remove those to avoid space leaks and 'unused' updates to `this`:
-            this.input.iUnsubscribe(this);
-        }
-    }
+    unsubscribeFromDeps() { this.input.iUnsubscribe(this); }
     
     private insert(i: number, v: T) {
         const j = i > 0 ? this.indexMapping[i - 1] + 1 : 0;
@@ -535,25 +516,6 @@ class FilteredVecnal<T> extends Vecnal<T> implements IndexedSubscriber<T> {
             } // else still filtered out => no change
         }
     }
-    
-    notifySubstitute(i: number, v: T, u: T) {
-        // No `this.equals` check; presumably `this.input` already took care of that. 
-        for (const subscriber of this.subscribers) {
-            subscriber.onSubstitute(i, u);
-        }
-    }
-    
-    notifyInsert(i: number, v: T) { // TODO: DRY (wrt. e.g. `SourceVecnal`)
-        for (const subscriber of this.subscribers) {
-            subscriber.onInsert(i, v);
-        }
-    }
-    
-    notifyRemove(i: number) { // TODO: DRY (wrt. e.g. `SourceVecnal`)
-        for (const subscriber of this.subscribers) {
-            subscriber.onRemove(i);
-        }
-    }
 }
 
 class ConcatVecnalDepSubscriber<T> implements IndexedSubscriber<T> {
@@ -594,13 +556,12 @@ class ConcatVecnalDepSubscriber<T> implements IndexedSubscriber<T> {
     }
 }
 
-class ConcatVecnal<T> extends Vecnal<T> {
+class ConcatVecnal<T> extends SubscribingSubscribeableVecnal<T> {
     // Some members need to be public for `ConcatVecnalDepSubscriber`. This class itself need not be
     // a public module member though so it will be fine:
     readonly vs: T[]; // OPTIMIZE: RRB vector
     readonly offsets: number[];
     private readonly depSubscribers: IndexedSubscriber<T>[];
-    private readonly subscribers = new Set<IndexedSubscriber<T>>();
     
     constructor(
         private readonly deps: Vecnal<T>[]
@@ -676,61 +637,25 @@ class ConcatVecnal<T> extends Vecnal<T> {
         }
     }
     
-    iSubscribe(subscriber: IndexedSubscriber<T>) {
-        if (this.subscribers.size === 0) {
-            // To avoid space leaks and 'unused' updates to `this` only start watching dependencies
-            // when `this` gets its first watcher:
-            {
-                const len = this.deps.length;
-                for (let i = 0; i < len; ++i) {
-                    this.deps[i].iSubscribe(this.depSubscribers[i]);
-                }
-            }
-        }
-        
-        this.subscribers.add(subscriber);
-    }
-    
-    iUnsubscribe(subscriber: IndexedSubscriber<T>) {
-        this.subscribers.delete(subscriber);
-        
-        if (this.subscribers.size === 0) {
-            // Watcher count just became zero, but watchees still have pointers to `this` (via
-            // `depSubscriber`). Remove those to avoid space leaks and 'unused' updates to `this`:
-            {
-                const len = this.deps.length;
-                for (let i = 0; i < len; ++i) {
-                    this.deps[i].iUnsubscribe(this.depSubscribers[i]);
-                }
-            }
+    subscribeToDeps() {
+        const len = this.deps.length;
+        for (let i = 0; i < len; ++i) {
+            this.deps[i].iSubscribe(this.depSubscribers[i]);
         }
     }
     
-    notifySubstitute(i: number, v: T, u: T) { // TODO: DRY (wrt. e.g. `FilteredVecnal`)
-        // No `this.equals` check; presumably the dependency already took care of that.:
-        for (const subscriber of this.subscribers) {
-            subscriber.onSubstitute(i, u);
-        }
-    }
-    
-    notifyInsert(i: number, v: T) { // TODO: DRY (wrt. e.g. `SourceVecnal`)
-        for (const subscriber of this.subscribers) {
-            subscriber.onInsert(i, v);
-        }
-    }
-    
-    notifyRemove(i: number) { // TODO: DRY (wrt. e.g. `SourceVecnal`)
-        for (const subscriber of this.subscribers) {
-            subscriber.onRemove(i);
+    unsubscribeFromDeps() {
+        const len = this.deps.length;
+        for (let i = 0; i < len; ++i) {
+            this.deps[i].iUnsubscribe(this.depSubscribers[i]);
         }
     }
 }
 
 function concat<T>(...vecnals: Vecnal<T>[]): Vecnal<T> { return new ConcatVecnal(vecnals); }
 
-class SingleElementVecnal<T> extends Vecnal<T> {
+class SingleElementVecnal<T> extends SubscribingSubscribeableVecnal<T> {
     private v: T;
-    private readonly subscribers = new Set<IndexedSubscriber<T>>();
     private readonly depSubscriber: Subscriber<T>;
     
     constructor(
@@ -755,36 +680,9 @@ class SingleElementVecnal<T> extends Vecnal<T> {
     
     reduce<U>(f: (acc: U, v: T) => U, acc: U): U { return f(acc, this.v); }
     
-    iSubscribe(subscriber: IndexedSubscriber<T>) {
-        if (this.subscribers.size === 0) {
-            // To avoid space leaks and 'unused' updates to `this` only start watching dependencies
-            // when `this` gets its first watcher:
-            this.signal.subscribe(this.depSubscriber);
-        }
-        
-        this.subscribers.add(subscriber);
-    }
+    subscribeToDeps() { this.signal.subscribe(this.depSubscriber); }
     
-    iUnsubscribe(subscriber: IndexedSubscriber<T>) {
-        this.subscribers.delete(subscriber);
-        
-        if (this.subscribers.size === 0) {
-            // Watcher count just became zero, but watchees still have pointers to `this` (via
-            // `depSubscriber`). Remove those to avoid space leaks and 'unused' updates to `this`:
-            this.signal.unsubscribe(this.depSubscriber);
-        }
-    }
-    
-    notifySubstitute(i: number, v: T, u: T) { // TODO: DRY (wrt. e.g. `FilteredVecnal`)
-        // No `this.equals` check; presumably the dependency already took care of that.:
-        for (const subscriber of this.subscribers) {
-            subscriber.onSubstitute(i, u);
-        }
-    }
-    
-    notifyInsert(i: number, v: T) { throw Error("Unreachable"); }
-    
-    notifyRemove(i: number) { throw Error("Unreachable"); }
+    unsubscribeFromDeps() { this.signal.unsubscribe(this.depSubscriber); }
 }
 
 function lift<T>(signal: Signal<T>): Vecnal<T> { return new SingleElementVecnal(signal); }
@@ -883,9 +781,10 @@ class ThunkSignal<T> extends Signal<T> {
     notify(v: T, u: T) {}
 }
 
-class ViewVecnal<T> extends Vecnal<Signal<T>> implements IndexedSubscriber<T> {
+class ViewVecnal<T> extends SubscribingSubscribeableVecnal<Signal<T>>
+    implements IndexedSubscriber<T>
+{
     private readonly signals: (Signal<T> & Reset<T>)[]; // OPTIMIZE: RRB vector
-    private readonly subscribers = new Set<IndexedSubscriber<Signal<T>>>();
     
     constructor(
         private readonly input: Vecnal<T>
@@ -939,25 +838,9 @@ class ViewVecnal<T> extends Vecnal<Signal<T>> implements IndexedSubscriber<T> {
         return this.signals.reduce(f, acc);
     }
     
-    iSubscribe(subscriber: IndexedSubscriber<Signal<T>>) {
-        if (this.subscribers.size === 0) {
-            // To avoid space leaks and 'unused' updates to `this` only start watching dependencies
-            // when `this` gets its first watcher:
-            this.input.iSubscribe(this);
-        }
-        
-        this.subscribers.add(subscriber);
-    }
+    subscribeToDeps() { this.input.iSubscribe(this); }
     
-    iUnsubscribe(subscriber: IndexedSubscriber<Signal<T>>) {
-        this.subscribers.delete(subscriber);
-        
-        if (this.subscribers.size === 0) {
-            // Watcher count just became zero, but watchees still have pointers to `this` (via
-            // `depSubscriber`). Remove those to avoid space leaks and 'unused' updates to `this`:
-            this.input.iUnsubscribe(this);
-        }
-    }
+    unsubscribeFromDeps() { this.input.iUnsubscribe(this); }
     
     onInsert(i: number, v: T) {
         const sig = signal.source(eq, v);
@@ -975,24 +858,9 @@ class ViewVecnal<T> extends Vecnal<Signal<T>> implements IndexedSubscriber<T> {
     onSubstitute(i: number, v: T) {
         this.signals[i].reset(v);
     }
-    
-    notifySubstitute(i: number, v: Signal<T>, u: Signal<T>) { throw Error("Unreachable"); }
-    
-    notifyInsert(i: number, v: Signal<T>) { // TODO: DRY (wrt. e.g. `SourceVecnal`)
-        for (const subscriber of this.subscribers) {
-            subscriber.onInsert(i, v);
-        }
-    }
-    
-    notifyRemove(i: number) { // TODO: DRY (wrt. e.g. `SourceVecnal`)
-        for (const subscriber of this.subscribers) {
-            subscriber.onRemove(i);
-        }
-    }
 }
 
-class ImuxVecnal<T> extends Vecnal<T> {
-    private readonly subscribers = new Set<IndexedSubscriber<T>>();
+class ImuxVecnal<T> extends SubscribingSubscribeableVecnal<T> {
     private readonly vs: T[];
     private readonly inputSubscriber: Subscriber<Sized & Indexed<T>>;
     
@@ -1072,44 +940,9 @@ class ImuxVecnal<T> extends Vecnal<T> {
         }
     }
     
-    iSubscribe(subscriber: IndexedSubscriber<T>) {
-        if (this.subscribers.size === 0) {
-            // To avoid space leaks and 'unused' updates to `this` only start watching dependencies
-            // when `this` gets its first watcher:
-            this.input.subscribe(this.inputSubscriber);
-        }
-        
-        this.subscribers.add(subscriber);
-    }
+    subscribeToDeps() { this.input.subscribe(this.inputSubscriber); }
     
-    iUnsubscribe(subscriber: IndexedSubscriber<T>) {
-        this.subscribers.delete(subscriber);
-        
-        if (this.subscribers.size === 0) {
-            // Watcher count just became zero, but watchees still have pointers to `this` (via
-            // `depSubscriber`). Remove those to avoid space leaks and 'unused' updates to `this`:
-            this.input.unsubscribe(this.inputSubscriber);
-        }
-    }
-    
-    notifySubstitute(i: number, v: T, u: T) { // TODO: DRY (wrt. e.g. `FilteredVecnal`)
-        // No `this.equals` check; the diffing already took care of that.:
-        for (const subscriber of this.subscribers) {
-            subscriber.onSubstitute(i, u);
-        }
-    }
-    
-    notifyInsert(i: number, v: T) { // TODO: DRY (wrt. e.g. `SourceVecnal`)
-        for (const subscriber of this.subscribers) {
-            subscriber.onInsert(i, v);
-        }
-    }
-    
-    notifyRemove(i: number) { // TODO: DRY (wrt. e.g. `SourceVecnal`)
-        for (const subscriber of this.subscribers) {
-            subscriber.onRemove(i);
-        }
-    }
+    unsubscribeFromDeps() { this.input.unsubscribe(this.inputSubscriber); }
 }
 
 function imux<T>(equals: (x: T, y: T) => boolean,
