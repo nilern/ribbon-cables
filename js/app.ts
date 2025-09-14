@@ -39,7 +39,7 @@ class Todo {
 class Model {
     constructor(
         public readonly nextId = 0,
-        public readonly todos: Todo[] = []
+        public readonly todos: readonly Todo[] = []
     ) {
     
     }
@@ -298,7 +298,7 @@ function todosFooter(ctrl: Ctrl, todoCount: Signal<number>, filterS: Signal<Filt
             "Clear completed"));
 }
 
-function createUI(ctrl: Ctrl, todoS: Signal<Todo[]>, filterS: Signal<Filter>): Element {
+function createUI(ctrl: Ctrl, todoS: Signal<readonly Todo[]>, filterS: Signal<Filter>): Element {
     const visibleTodoS: Signal<ImmArrayAdapter<Todo>> = todoS.map2(eq,
         (todos, filter) => new ImmArrayAdapter(todos.filter(filterFn(filter))), // OPTIMIZE
         filterS);
