@@ -36,6 +36,12 @@ interface IndexedObservable<T> {
 // TODO: Ribbon cable -inspired name:
 interface IVecnal<T> extends Indexed<T>, Sized, Reducible<T>, IndexedObservable<T> {}
 
+interface ListBuilder<Item, Coll> {
+    push: (v: Item) => void;
+    
+    build: () => Coll;
+}
+
 abstract class Vecnal<T> implements IVecnal<T> {
     abstract size(): number;
     
@@ -62,11 +68,12 @@ abstract class Vecnal<T> implements IVecnal<T> {
     
     view(): Vecnal<Signal<T>> { return new ViewVecnal(this); }
     
-    mux(): Signal<T[]> {
-        return this.reduceS(eq, (coll, v) => {
-            coll.push(v);
-            return coll;
-        }, new ThunkSignal<T[]>(emptyArrays));
+    mux<Coll>(builders: () => ListBuilder<T, Coll>): Signal<Coll> {
+        return this.reduceS(eq, (builder, v) => {
+            builder.push(v);
+            return builder;
+        }, new ThunkSignal<ListBuilder<T, Coll>>(builders))
+        .map(eq, (builder) => builder.build());
     }
 }
 
@@ -868,8 +875,6 @@ class ThunkSignal<T> extends Signal<T> {
     
     notify(v: T, u: T) {}
 }
-
-function emptyArrays<T>(): T[] { return []; }
 
 class ViewVecnal<T> extends Vecnal<Signal<T>> implements IndexedSubscriber<T> {
     private readonly signals: (Signal<T> & Reset<T>)[]; // OPTIMIZE: RRB vector
