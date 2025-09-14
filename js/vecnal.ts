@@ -656,17 +656,11 @@ class ConcatVecnal<T> extends SubscribingSubscribeableVecnal<T> {
     }
     
     subscribeToDeps() {
-        const len = this.deps.length;
-        for (let i = 0; i < len; ++i) {
-            this.deps[i].iSubscribe(this.depSubscribers[i]);
-        }
+        this.deps.forEach((dep, i) => dep.iSubscribe(this.depSubscribers[i]));
     }
     
     unsubscribeFromDeps() {
-        const len = this.deps.length;
-        for (let i = 0; i < len; ++i) {
-            this.deps[i].iUnsubscribe(this.depSubscribers[i]);
-        }
+        this.deps.forEach((dep, i) => dep.iUnsubscribe(this.depSubscribers[i]));
     }
 }
 

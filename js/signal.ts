@@ -199,15 +199,11 @@ class MappedSignal<U, T extends Signal<any>[]>
     }
     
     subscribeToDeps() {
-        for (let i = 0; i < this.deps.length; ++i) {
-            this.deps[i].subscribe(this.depSubscribers[i]);
-        }
+        this.deps.forEach((dep, i) => dep.subscribe(this.depSubscribers[i]));
     }
     
     unsubscribeFromDeps() {
-        for (let i = 0; i < this.deps.length; ++i) {
-            this.deps[i].unsubscribe(this.depSubscribers[i]);
-        }
+        this.deps.forEach((dep, i) => dep.unsubscribe(this.depSubscribers[i]));
     }
 }
 
