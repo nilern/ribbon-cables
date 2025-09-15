@@ -9,14 +9,14 @@ export {
 
 import type {Deref, Reset} from "./prelude.js";
 
-type Subscriber<T> = (v: T, u: T) => void;
+type Subscriber<T> = (v: T) => void;
 
 interface Observable<T> {
     subscribe: (subscriber: Subscriber<T>) => void;
     
     unsubscribe: (subscriber: Subscriber<T>) => void;
     
-    notify: (/* TODO: Remove this param if possible: */ oldVal: T, newVal: T) => void;
+    notify: (oldVal: T, newVal: T) => void;
 }
 
 interface ISignal<T> extends Deref<T>, Observable<T> {}
@@ -54,9 +54,9 @@ abstract class SubscribeableSignal<T> extends Signal<T> {
         this.subscribers.delete(subscriber);
     }
     
-    notify(v: T, u: T) {
+    notify(_: T, u: T) {
         for (const subscriber of this.subscribers) {
-            subscriber(v, u);
+            subscriber(u);
         }
     }
 }
@@ -175,7 +175,7 @@ class MappedSignal<U, T extends Signal<any>[]>
         this.deps = deps;
         
         for (const dep of deps) {
-            this.depSubscribers.push((_: any, _1: any) => {
+            this.depSubscribers.push((_: any) => {
                 const oldVal = this.v;
                 const newVal = this.f.apply(undefined, this.deps.map((dep) => dep.ref()));
                 this.v = newVal;

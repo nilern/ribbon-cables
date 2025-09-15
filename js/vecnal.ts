@@ -9,7 +9,7 @@ export {
 };
 
 import type {Reset, Sized, Indexed, Spliceable, Reducible} from "./prelude.js";
-import {eq} from "./prelude.js";
+import {ImmArrayAdapter, eq} from "./prelude.js";
 import * as diff from "./diff.js"
 import type {Subscriber} from "./signal.js";
 import * as signal from "./signal.js";
@@ -672,7 +672,8 @@ class SingleElementVecnal<T> extends SubscribingSubscribeableVecnal<T> {
         super();
         
         this.v = signal.ref();
-        this.depSubscriber = (oldVal, newVal) => {
+        this.depSubscriber = (newVal) => {
+            const oldVal = this.v;
             this.v = newVal;
             this.notifySubstitute(0, oldVal, newVal);
         }
@@ -710,7 +711,7 @@ class ReducedSignal<U, T> extends CheckingSubscribingSubscribeableSignal<U>
         super(equals);
         
         this.v = inputColl.reduce(f, inputAcc.ref());
-        this.depSubscriber = (_, newAcc) => {
+        this.depSubscriber = (newAcc) => {
             const oldVal = this.v;
             const newVal = this.inputColl.reduce(this.f, newAcc);
             this.v = newVal;
@@ -864,8 +865,8 @@ class ImuxVecnal<T> extends SubscribingSubscribeableVecnal<T> {
             return builder;
         }, []);
         
-        this.inputSubscriber = (oldVs, newVs) => {
-            const edits = diff.diff(oldVs, newVs, this.equals);
+        this.inputSubscriber = (newVs) => {
+            const edits = diff.diff(new ImmArrayAdapter(this.vs), newVs, this.equals);
             this.patch(newVs, edits);
         };
     }

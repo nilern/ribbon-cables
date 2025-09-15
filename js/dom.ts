@@ -195,7 +195,7 @@ function setAttribute(node: Element, name: string, val: AttributeValue) {
         setAttributeString(node, name, val);
     } else if (val instanceof Signal) {
         setAttributeString(node, name, val.ref());
-        addWatchee(node as unknown as MountableNode, val, (_, newVal) =>
+        addWatchee(node as unknown as MountableNode, val, (newVal) =>
             setAttributeString(node, name, newVal)
         );
     } else if (typeof val === "function") {
