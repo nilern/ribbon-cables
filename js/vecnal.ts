@@ -13,7 +13,8 @@ import {ImmArrayAdapter, eq} from "./prelude.js";
 import * as diff from "./diff.js"
 import type {Subscriber} from "./signal.js";
 import * as signal from "./signal.js";
-import {Signal, CheckingSubscribingSubscribeableSignal} from "./signal.js";
+import {Signal, NonNotifyingSignal, CheckingSubscribingSubscribeableSignal}
+    from "./signal.js";
 
 interface IndexedSubscriber<T> {
     onInsert: (i: number, v: T) => void;
@@ -757,7 +758,7 @@ class ReducedSignal<U, T> extends CheckingSubscribingSubscribeableSignal<U>
     }
 }
 
-class ThunkSignal<T> extends Signal<T> {
+class ThunkSignal<T> extends NonNotifyingSignal<T> {
     constructor(
         private readonly f: () => T
     ) {
@@ -765,12 +766,6 @@ class ThunkSignal<T> extends Signal<T> {
     }
     
     ref(): T { return this.f(); }
-    
-    addSubscriber(_: Subscriber<T>) {}
-    
-    removeSubscriber(_: Subscriber<T>) {}
-    
-    notify(v: T, u: T) {}
 }
 
 class ViewVecnal<T> extends SubscribingSubscribeableVecnal<Signal<T>>

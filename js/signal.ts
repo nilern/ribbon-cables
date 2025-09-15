@@ -3,7 +3,7 @@ export type {
 };
 export {
     Signal,
-    CheckingSubscribingSubscribeableSignal,
+    NonNotifyingSignal, CheckingSubscribingSubscribeableSignal,
     stable, source
 };
 
@@ -43,6 +43,14 @@ abstract class Signal<T> implements ISignal<T> {
         
         return new MappedSignal(equals, g, this, that);
     }
+}
+
+abstract class NonNotifyingSignal<T> extends Signal<T> {
+    addSubscriber(_: Subscriber<T>) {}
+    
+    removeSubscriber(_: Subscriber<T>) {}
+    
+    notify(_: T, _1: T) {}
 }
 
 abstract class SubscribeableSignal<T> extends Signal<T> {
@@ -118,7 +126,7 @@ abstract class CheckingSubscribingSubscribeableSignal<T>
     }
 }
 
-class ConstSignal<T> extends Signal<T> {
+class ConstSignal<T> extends NonNotifyingSignal<T> {
     constructor(
         private readonly v: T
     ) {
@@ -126,12 +134,6 @@ class ConstSignal<T> extends Signal<T> {
     }
     
     ref(): T { return this.v; }
-    
-    addSubscriber(_: Subscriber<T>) {}
-    
-    removeSubscriber(_: Subscriber<T>) {}
-    
-    notify(v: T, u: T) {}
 }
 
 function stable<T>(v: T): Signal<T> { return new ConstSignal(v); }
