@@ -23,9 +23,9 @@ interface IndexedSubscriber<T> {
 }
 
 interface IndexedObservable<T> {
-    iSubscribe: (subscriber: IndexedSubscriber<T>) => void;
+    addISubscriber: (subscriber: IndexedSubscriber<T>) => void;
     
-    iUnsubscribe: (subscriber: IndexedSubscriber<T>) => void;
+    removeISubscriber: (subscriber: IndexedSubscriber<T>) => void;
     
     notifyInsert: (i: number, v: T) => void;
     notifyRemove: (i: number) => void;
@@ -49,8 +49,8 @@ abstract class Vecnal<T> implements IVecnal<T> {
     
     abstract reduce<U>(f: (acc: U, v: T) => U, acc: U): U;
     
-    abstract iSubscribe(subscriber: IndexedSubscriber<T>): void;
-    abstract iUnsubscribe(subscriber: IndexedSubscriber<T>): void;
+    abstract addISubscriber(subscriber: IndexedSubscriber<T>): void;
+    abstract removeISubscriber(subscriber: IndexedSubscriber<T>): void;
     abstract notifyInsert(i: number, v: T): void;
     abstract notifyRemove(i: number): void;
     abstract notifySubstitute(i: number, v: T, u: T): void;
@@ -80,11 +80,11 @@ abstract class Vecnal<T> implements IVecnal<T> {
 abstract class SubscribeableVecnal<T> extends Vecnal<T> {
     protected readonly subscribers = new Set<IndexedSubscriber<T>>();
     
-    iSubscribe(subscriber: IndexedSubscriber<T>) {
+    addISubscriber(subscriber: IndexedSubscriber<T>) {
         this.subscribers.add(subscriber);
     }
     
-    iUnsubscribe(subscriber: IndexedSubscriber<T>) {
+    removeISubscriber(subscriber: IndexedSubscriber<T>) {
         this.subscribers.delete(subscriber);
     }
     
@@ -125,18 +125,18 @@ abstract class SubscribingSubscribeableVecnal<T> extends SubscribeableVecnal<T> 
     abstract subscribeToDeps(): void;
     abstract unsubscribeFromDeps(): void;
 
-    iSubscribe(subscriber: IndexedSubscriber<T>) {
+    addISubscriber(subscriber: IndexedSubscriber<T>) {
         if (this.subscribers.size === 0) {
             /* To avoid space leaks and 'unused' updates to `this` only start watching
              * dependencies when `this` gets its first watcher: */
             this.subscribeToDeps();
         }
         
-        super.iSubscribe(subscriber);
+        super.addISubscriber(subscriber);
     }
     
-    iUnsubscribe(subscriber: IndexedSubscriber<T>) {
-        super.iUnsubscribe(subscriber);
+    removeISubscriber(subscriber: IndexedSubscriber<T>) {
+        super.removeISubscriber(subscriber);
         
         if (this.subscribers.size === 0) {
             /* Watcher count just became zero, but watchees still have pointers to `this`.
@@ -181,9 +181,9 @@ class ConstVecnal<T> extends Vecnal<T> {
     
     reduce<U>(f: (acc: U, v: T) => U, acc: U): U { return this.vs.reduce(f, acc); }
     
-    iSubscribe(_: IndexedSubscriber<T>) {}
+    addISubscriber(_: IndexedSubscriber<T>) {}
     
-    iUnsubscribe(_: IndexedSubscriber<T>) {}
+    removeISubscriber(_: IndexedSubscriber<T>) {}
     
     notifyInsert(_: number, _1: T) {}
     
@@ -311,9 +311,9 @@ class MappedVecnal<U, T> extends CheckingSubscribingSubscribeableVecnal<U>
         return this.vs.reduce(f, acc);
     }
     
-    subscribeToDeps() { this.input.iSubscribe(this); }
+    subscribeToDeps() { this.input.addISubscriber(this); }
     
-    unsubscribeFromDeps() { this.input.iUnsubscribe(this); }
+    unsubscribeFromDeps() { this.input.removeISubscriber(this); }
     
     onInsert(i: number, v: T) {
         const u = this.f(v);
@@ -437,9 +437,9 @@ class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
         return this.vs[i];
     }
     
-    subscribeToDeps() { this.input.iSubscribe(this); }
+    subscribeToDeps() { this.input.addISubscriber(this); }
     
-    unsubscribeFromDeps() { this.input.iUnsubscribe(this); }
+    unsubscribeFromDeps() { this.input.removeISubscriber(this); }
     
     private insert(i: number, v: T) {
         const j = i > 0 ? this.indexMapping[i - 1] + 1 : 0;
@@ -652,11 +652,11 @@ class ConcatVecnal<T> extends SubscribingSubscribeableVecnal<T> {
     }
     
     subscribeToDeps() {
-        this.deps.forEach((dep, i) => dep.iSubscribe(this.depSubscribers[i]));
+        this.deps.forEach((dep, i) => dep.addISubscriber(this.depSubscribers[i]));
     }
     
     unsubscribeFromDeps() {
-        this.deps.forEach((dep, i) => dep.iUnsubscribe(this.depSubscribers[i]));
+        this.deps.forEach((dep, i) => dep.removeISubscriber(this.depSubscribers[i]));
     }
 }
 
@@ -685,9 +685,9 @@ class SingleElementVecnal<T> extends SubscribingSubscribeableVecnal<T>
     
     reduce<U>(f: (acc: U, v: T) => U, acc: U): U { return f(acc, this.v); }
     
-    subscribeToDeps() { this.signal.subscribe(this); }
+    subscribeToDeps() { this.signal.addSubscriber(this); }
     
-    unsubscribeFromDeps() { this.signal.unsubscribe(this); }
+    unsubscribeFromDeps() { this.signal.removeSubscriber(this); }
     
     onChange(newVal: T) {
         const oldVal = this.v;
@@ -727,13 +727,13 @@ class ReducedSignal<U, T> extends CheckingSubscribingSubscribeableSignal<U>
     }
     
     subscribeToDeps() {
-        this.inputAcc.subscribe(this);
-        this.inputColl.iSubscribe(this);
+        this.inputAcc.addSubscriber(this);
+        this.inputColl.addISubscriber(this);
     }
     
     unsubscribeFromDeps() {
-        this.inputAcc.unsubscribe(this);
-        this.inputColl.iUnsubscribe(this);
+        this.inputAcc.removeSubscriber(this);
+        this.inputColl.removeISubscriber(this);
     }
     
     private onCollChange() {
@@ -766,9 +766,9 @@ class ThunkSignal<T> extends Signal<T> {
     
     ref(): T { return this.f(); }
     
-    subscribe(_: Subscriber<T>) {}
+    addSubscriber(_: Subscriber<T>) {}
     
-    unsubscribe(_: Subscriber<T>) {}
+    removeSubscriber(_: Subscriber<T>) {}
     
     notify(v: T, u: T) {}
 }
@@ -830,9 +830,9 @@ class ViewVecnal<T> extends SubscribingSubscribeableVecnal<Signal<T>>
         return this.signals.reduce(f, acc);
     }
     
-    subscribeToDeps() { this.input.iSubscribe(this); }
+    subscribeToDeps() { this.input.addISubscriber(this); }
     
-    unsubscribeFromDeps() { this.input.iUnsubscribe(this); }
+    unsubscribeFromDeps() { this.input.removeISubscriber(this); }
     
     onInsert(i: number, v: T) {
         const sig = signal.source(eq, v);
@@ -930,9 +930,9 @@ class ImuxVecnal<T> extends SubscribingSubscribeableVecnal<T>
         }
     }
     
-    subscribeToDeps() { this.input.subscribe(this); }
+    subscribeToDeps() { this.input.addSubscriber(this); }
     
-    unsubscribeFromDeps() { this.input.unsubscribe(this); }
+    unsubscribeFromDeps() { this.input.removeSubscriber(this); }
     
     onChange(newVs: ImuxableVal<T>) {
         const edits = diff.diff(new ImmArrayAdapter(this.vs), newVs, this.equals);

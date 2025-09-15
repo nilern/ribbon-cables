@@ -80,7 +80,7 @@ function activateSink(node: MountableNode) {
     if (node.__vcnWatchees) {
         for (const [valS, subscribers] of node.__vcnWatchees) {
             for (const subscriber of subscribers) {
-                valS.subscribe(subscriber as Subscriber<any>);
+                valS.addSubscriber(subscriber as Subscriber<any>);
             }
         }
     }
@@ -88,7 +88,7 @@ function activateSink(node: MountableNode) {
     if (node.__vcnMultiWatchees) {
         for (const [collS, subscribers] of node.__vcnMultiWatchees) {
             for (const subscriber of subscribers) {
-                collS.iSubscribe(subscriber as IndexedSubscriber<any>);
+                collS.addISubscriber(subscriber as IndexedSubscriber<any>);
             }
         }
     }
@@ -98,7 +98,7 @@ function deactivateSink(node: MountableNode) {
     if (node.__vcnWatchees) {
         for (const [valS, subscribers] of node.__vcnWatchees) {
             for (const subscriber of subscribers) {
-                valS.unsubscribe(subscriber as Subscriber<any>);
+                valS.removeSubscriber(subscriber as Subscriber<any>);
             }
         }
     }
@@ -106,7 +106,7 @@ function deactivateSink(node: MountableNode) {
     if (node.__vcnMultiWatchees) {
         for (const [collS, subscribers] of node.__vcnMultiWatchees) {
             for (const subscriber of subscribers) {
-                collS.iUnsubscribe(subscriber as IndexedSubscriber<any>);
+                collS.removeISubscriber(subscriber as IndexedSubscriber<any>);
             }
         }
     }

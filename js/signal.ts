@@ -14,9 +14,9 @@ interface Subscriber<T> {
 }
 
 interface Observable<T> {
-    subscribe: (subscriber: Subscriber<T>) => void;
+    addSubscriber: (subscriber: Subscriber<T>) => void;
     
-    unsubscribe: (subscriber: Subscriber<T>) => void;
+    removeSubscriber: (subscriber: Subscriber<T>) => void;
     
     notify: (oldVal: T, newVal: T) => void;
 }
@@ -26,8 +26,8 @@ interface ISignal<T> extends Deref<T>, Observable<T> {}
 abstract class Signal<T> implements ISignal<T> {
     abstract ref(): T;
     
-    abstract subscribe(subscriber: Subscriber<T>): void;
-    abstract unsubscribe(subscriber: Subscriber<T>): void;
+    abstract addSubscriber(subscriber: Subscriber<T>): void;
+    abstract removeSubscriber(subscriber: Subscriber<T>): void;
     abstract notify(v: T, u: T): void;
     
     map<U>(equals: (x: U, y: U) => boolean, f: (v: T) => U): Signal<U> {
@@ -48,11 +48,11 @@ abstract class Signal<T> implements ISignal<T> {
 abstract class SubscribeableSignal<T> extends Signal<T> {
     protected readonly subscribers = new Set<Subscriber<T>>();
     
-    subscribe(subscriber: Subscriber<T>) {
+    addSubscriber(subscriber: Subscriber<T>) {
         this.subscribers.add(subscriber);
     }
     
-    unsubscribe(subscriber: Subscriber<T>) {
+    removeSubscriber(subscriber: Subscriber<T>) {
         this.subscribers.delete(subscriber);
     }
     
@@ -81,18 +81,18 @@ abstract class SubscribingSubscribeableSignal<T> extends SubscribeableSignal<T> 
     abstract subscribeToDeps(): void;
     abstract unsubscribeFromDeps(): void;
     
-    subscribe(subscriber: Subscriber<T>) {
+    addSubscriber(subscriber: Subscriber<T>) {
         if (this.subscribers.size === 0) {
             /* To avoid space leaks and 'unused' updates to `this` only start watching 
              * dependencies when `this` gets its first watcher: */
             this.subscribeToDeps();
         }
         
-        super.subscribe(subscriber);
+        super.addSubscriber(subscriber);
     }
     
-    unsubscribe(subscriber: Subscriber<T>) {
-        super.unsubscribe(subscriber);
+    removeSubscriber(subscriber: Subscriber<T>) {
+        super.removeSubscriber(subscriber);
         
         if (this.subscribers.size === 0) {
             /* Watcher count just became zero, but watchees still have pointers to `this`. 
@@ -127,9 +127,9 @@ class ConstSignal<T> extends Signal<T> {
     
     ref(): T { return this.v; }
     
-    subscribe(_: Subscriber<T>) {}
+    addSubscriber(_: Subscriber<T>) {}
     
-    unsubscribe(_: Subscriber<T>) {}
+    removeSubscriber(_: Subscriber<T>) {}
     
     notify(v: T, u: T) {}
 }
@@ -201,11 +201,11 @@ class MappedSignal<U, T extends Signal<any>[]>
     }
     
     subscribeToDeps() {
-        this.deps.forEach((dep, i) => dep.subscribe(this.depSubscribers[i]));
+        this.deps.forEach((dep, i) => dep.addSubscriber(this.depSubscribers[i]));
     }
     
     unsubscribeFromDeps() {
-        this.deps.forEach((dep, i) => dep.unsubscribe(this.depSubscribers[i]));
+        this.deps.forEach((dep, i) => dep.removeSubscriber(this.depSubscribers[i]));
     }
 }
 
