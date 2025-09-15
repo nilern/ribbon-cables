@@ -662,9 +662,10 @@ class ConcatVecnal<T> extends SubscribingSubscribeableVecnal<T> {
 
 function concat<T>(...vecnals: Vecnal<T>[]): Vecnal<T> { return new ConcatVecnal(vecnals); }
 
-class SingleElementVecnal<T> extends SubscribingSubscribeableVecnal<T> {
+class SingleElementVecnal<T> extends SubscribingSubscribeableVecnal<T>
+    implements Subscriber<T>
+{
     private v: T;
-    private readonly depSubscriber: Subscriber<T>;
     
     constructor(
         private readonly signal: Signal<T>
@@ -672,11 +673,6 @@ class SingleElementVecnal<T> extends SubscribingSubscribeableVecnal<T> {
         super();
         
         this.v = signal.ref();
-        this.depSubscriber = (newVal) => {
-            const oldVal = this.v;
-            this.v = newVal;
-            this.notifySubstitute(0, oldVal, newVal);
-        }
     }
     
     size(): number { return 1; }
@@ -689,18 +685,23 @@ class SingleElementVecnal<T> extends SubscribingSubscribeableVecnal<T> {
     
     reduce<U>(f: (acc: U, v: T) => U, acc: U): U { return f(acc, this.v); }
     
-    subscribeToDeps() { this.signal.subscribe(this.depSubscriber); }
+    subscribeToDeps() { this.signal.subscribe(this); }
     
-    unsubscribeFromDeps() { this.signal.unsubscribe(this.depSubscriber); }
+    unsubscribeFromDeps() { this.signal.unsubscribe(this); }
+    
+    onChange(newVal: T) {
+        const oldVal = this.v;
+        this.v = newVal;
+        this.notifySubstitute(0, oldVal, newVal);
+    }
 }
 
 function lift<T>(signal: Signal<T>): Vecnal<T> { return new SingleElementVecnal(signal); }
 
 class ReducedSignal<U, T> extends CheckingSubscribingSubscribeableSignal<U>
-    implements IndexedSubscriber<T>
+    implements Subscriber<U>, IndexedSubscriber<T>
 {
     private v: U;
-    private readonly depSubscriber: Subscriber<U>;
 
     constructor(
         equals: (x: U, y: U) => boolean,
@@ -711,12 +712,6 @@ class ReducedSignal<U, T> extends CheckingSubscribingSubscribeableSignal<U>
         super(equals);
         
         this.v = inputColl.reduce(f, inputAcc.ref());
-        this.depSubscriber = (newAcc) => {
-            const oldVal = this.v;
-            const newVal = this.inputColl.reduce(this.f, newAcc);
-            this.v = newVal;
-            this.notify(oldVal, newVal);
-        };
     }
     
     ref(): U {
@@ -732,27 +727,34 @@ class ReducedSignal<U, T> extends CheckingSubscribingSubscribeableSignal<U>
     }
     
     subscribeToDeps() {
-        this.inputAcc.subscribe(this.depSubscriber);
+        this.inputAcc.subscribe(this);
         this.inputColl.iSubscribe(this);
     }
     
     unsubscribeFromDeps() {
-        this.inputAcc.unsubscribe(this.depSubscriber);
+        this.inputAcc.unsubscribe(this);
         this.inputColl.iUnsubscribe(this);
     }
     
-    private onChange() {
+    private onCollChange() {
         const oldVal = this.v;
         const newVal = this.inputColl.reduce(this.f, this.inputAcc.ref());
         this.v = newVal;
         this.notify(oldVal, newVal);
     }
     
-    onInsert(_: number, _1: T) { this.onChange(); }
+    onInsert(_: number, _1: T) { this.onCollChange(); }
     
-    onRemove(_: number) { this.onChange(); }
+    onRemove(_: number) { this.onCollChange(); }
     
-    onSubstitute(_: number, _1: T) { this.onChange(); }
+    onSubstitute(_: number, _1: T) { this.onCollChange(); }
+    
+    onChange(newAcc: U) {
+        const oldVal = this.v;
+        const newVal = this.inputColl.reduce(this.f, newAcc);
+        this.v = newVal;
+        this.notify(oldVal, newVal);
+    }
 }
 
 class ThunkSignal<T> extends Signal<T> {
@@ -850,9 +852,12 @@ class ViewVecnal<T> extends SubscribingSubscribeableVecnal<Signal<T>>
     }
 }
 
-class ImuxVecnal<T> extends SubscribingSubscribeableVecnal<T> {
+type ImuxableVal<T> = Reducible<T> & Sized & Indexed<T>;
+
+class ImuxVecnal<T> extends SubscribingSubscribeableVecnal<T>
+    implements Subscriber<ImuxableVal<T>>
+{
     private readonly vs: T[];
-    private readonly inputSubscriber: Subscriber<Sized & Indexed<T>>;
     
     constructor(
         private readonly equals: (x: T, y: T) => boolean,
@@ -864,11 +869,6 @@ class ImuxVecnal<T> extends SubscribingSubscribeableVecnal<T> {
             builder.push(v);
             return builder;
         }, []);
-        
-        this.inputSubscriber = (newVs) => {
-            const edits = diff.diff(new ImmArrayAdapter(this.vs), newVs, this.equals);
-            this.patch(newVs, edits);
-        };
     }
     
     private patch(newVs: Sized & Indexed<T>, edits: diff.EditScript) {
@@ -930,9 +930,14 @@ class ImuxVecnal<T> extends SubscribingSubscribeableVecnal<T> {
         }
     }
     
-    subscribeToDeps() { this.input.subscribe(this.inputSubscriber); }
+    subscribeToDeps() { this.input.subscribe(this); }
     
-    unsubscribeFromDeps() { this.input.unsubscribe(this.inputSubscriber); }
+    unsubscribeFromDeps() { this.input.unsubscribe(this); }
+    
+    onChange(newVs: ImuxableVal<T>) {
+        const edits = diff.diff(new ImmArrayAdapter(this.vs), newVs, this.equals);
+        this.patch(newVs, edits);
+    }
 }
 
 function imux<T>(equals: (x: T, y: T) => boolean,

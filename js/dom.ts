@@ -182,9 +182,9 @@ function setStyleAttribute(node: HTMLElement, name: string, val: BaseAttributeVa
         (node.style as unknown as StyleAttributeValue)[name] = val;
     } else if (val instanceof Signal) {
         (node.style as unknown as StyleAttributeValue)[name] = val.ref();
-        addWatchee(node as unknown as MountableNode, val, (newVal) => {
+        addWatchee(node as unknown as MountableNode, val, {onChange: (newVal) => {
             (node.style as unknown as StyleAttributeValue)[name] = newVal;
-        });
+        }});
     } else {
         const _exhaust: never = val;
     }
@@ -195,9 +195,9 @@ function setAttribute(node: Element, name: string, val: AttributeValue) {
         setAttributeString(node, name, val);
     } else if (val instanceof Signal) {
         setAttributeString(node, name, val.ref());
-        addWatchee(node as unknown as MountableNode, val, (newVal) =>
+        addWatchee(node as unknown as MountableNode, val, {onChange: (newVal) =>
             setAttributeString(node, name, newVal)
-        );
+        });
     } else if (typeof val === "function") {
         console.assert(name.slice(0, 2) === "on", "%s does not begin with 'on'", name);
         
