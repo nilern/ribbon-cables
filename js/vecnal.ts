@@ -78,6 +78,18 @@ abstract class Vecnal<T> implements IVecnal<T> {
     }
 }
 
+abstract class NonNotifyingVecnal<T> extends Vecnal<T> {
+    addISubscriber(_: IndexedSubscriber<T>) {}
+    
+    removeISubscriber(_: IndexedSubscriber<T>) {}
+    
+    notifyInsert(_: number, _1: T) {}
+    
+    notifyRemove(_: number) {}
+    
+    notifySubstitute(_: number, _1: T) {}
+}
+
 abstract class SubscribeableVecnal<T> extends Vecnal<T> {
     protected readonly subscribers = new Set<IndexedSubscriber<T>>();
     
@@ -163,7 +175,7 @@ abstract class CheckingSubscribingSubscribeableVecnal<T>
     }
 }
 
-class ConstVecnal<T> extends Vecnal<T> {
+class ConstVecnal<T> extends NonNotifyingVecnal<T> {
     private readonly vs: readonly T[];
     
     constructor(
@@ -181,16 +193,6 @@ class ConstVecnal<T> extends Vecnal<T> {
     at(i: number): T { return this.vs[i]; }
     
     reduce<U>(f: (acc: U, v: T) => U, acc: U): U { return this.vs.reduce(f, acc); }
-    
-    addISubscriber(_: IndexedSubscriber<T>) {}
-    
-    removeISubscriber(_: IndexedSubscriber<T>) {}
-    
-    notifyInsert(_: number, _1: T) {}
-    
-    notifyRemove(_: number) {}
-    
-    notifySubstitute(_: number, _1: T) {}
 }
 
 function stable<T>(vs: Iterable<T>): Vecnal<T> { return new ConstVecnal(vs); }
