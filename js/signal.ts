@@ -45,6 +45,8 @@ abstract class Signal<T> implements ISignal<T> {
     }
 }
 
+// TODO: Use mixins instead of this slightly arbitrary hierarchy of abstract classes:
+
 abstract class NonNotifyingSignal<T> extends Signal<T> {
     addSubscriber(_: Subscriber<T>) {}
     

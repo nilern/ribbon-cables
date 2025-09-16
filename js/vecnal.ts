@@ -78,6 +78,8 @@ abstract class Vecnal<T> implements IVecnal<T> {
     }
 }
 
+// TODO: Use mixins instead of this slightly arbitrary hierarchy of abstract classes:
+
 abstract class NonNotifyingVecnal<T> extends Vecnal<T> {
     addISubscriber(_: IndexedSubscriber<T>) {}
     
