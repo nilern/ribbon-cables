@@ -10,7 +10,7 @@ export {
 import type {Deref, Reset} from "./prelude.js";
 
 interface Subscriber<T> {
-    onChange: (v: T) => void;
+    onChange: (v: T) => void; // TODO: Already reject non-changes here
 }
 
 interface Observable<T> {

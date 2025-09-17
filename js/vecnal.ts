@@ -16,6 +16,7 @@ import * as signal from "./signal.js";
 import {Signal, NonNotifyingSignal, CheckingSubscribingSubscribeableSignal}
     from "./signal.js";
 
+ // TODO: Already reject non-changes here:
 interface IndexedSubscriber<T> {
     onInsert: (i: number, v: T) => void;
     onRemove: (i: number) => void;
