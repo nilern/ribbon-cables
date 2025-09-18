@@ -67,3 +67,35 @@ describe('testing `map`', () => {
     });
 });
 
+describe('testing `map2`', () => {
+    test('ref()', () => {
+        const aS = source(eq, 1);
+        const bS = source(eq, 2);
+        const sumS = aS.map2<number, number>(eq, (a, b) => a + b, bS);
+        
+        expect(sumS.ref()).toBe(3);
+    });
+    
+    test('reset() dep', () => {
+        const aS = source(eq, 1);
+        const bS = source(eq, 2);
+        const sumS = aS.map2<number, number>(eq, (a, b) => a + b, bS);
+        
+        let notifiedSum = 0;
+        sumS.addSubscriber({onChange: (sum) => notifiedSum = sum});
+        
+        bS.reset(5);
+        
+        expect(sumS.ref()).toBe(6);
+        expect(notifiedSum).toBe(6);
+        
+        let notified = false;
+        sumS.addSubscriber({onChange: (_) => notified = true});
+        
+        bS.reset(5);
+        
+        expect(sumS.ref()).toBe(6);
+        expect(notified).toBeFalsy();
+    });
+});
+
