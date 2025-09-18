@@ -37,3 +37,33 @@ describe('testing `source`', () => {
     });
 });
 
+describe('testing `map`', () => {
+    test('ref()', () => {
+        const nameS = source(eq, 'Sigurd');
+        const lengthS = nameS.map<number>(eq, (str) => str.length);
+        
+        expect(lengthS.ref()).toBe(6);
+    });
+    
+    test('reset() dep', () => {
+        const nameS = source(eq, 'Sigurd');
+        const lengthS = nameS.map<number>(eq, (str) => str.length);
+        
+        let notifiedLength = 0;
+        lengthS.addSubscriber({onChange: (length) => notifiedLength = length});
+        
+        nameS.reset('Siegfried');
+        
+        expect(lengthS.ref()).toBe(9);
+        expect(notifiedLength).toBe(9);
+        
+        let notified = false;
+        lengthS.addSubscriber({onChange: (_) => notified = true});
+        
+        nameS.reset('Abendlied');
+        
+        expect(lengthS.ref()).toBe(9);
+        expect(notified).toBeFalsy();
+    });
+});
+
