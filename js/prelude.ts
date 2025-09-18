@@ -18,7 +18,7 @@ interface Sized {
 }
 
 interface Indexed<T> {
-    at: (i: number) => T;
+    at: (i: number) => T; // TODO: What to do with too big or negative indices?
 }
 
 interface IndexedMut<T> extends Indexed<T> {
