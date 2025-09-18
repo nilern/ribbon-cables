@@ -40,8 +40,9 @@ describe('testing `source`', () => {
             onSubstitute: (i, v) => change = [i, v]
         });
         
-        alphabetS.setAt(1, 'B');
+        const newItem = alphabetS.setAt(1, 'B');
         
+        expect(newItem).toBe('B');
         expect(alphabetS.at(1)).toBe('B');
         expect(change[0]).toBe(1);
         expect(change[1]).toBe('B');
@@ -68,8 +69,9 @@ describe('testing `source`', () => {
             onSubstitute: (_, _1) => {}
         });
         
-        alphabetS.insert(0, 'Z');
+        const newItem = alphabetS.insert(0, 'Z');
         
+        expect(newItem).toBe('Z');
         expect(alphabetS.at(0)).toBe('Z');
         expect(change[0]).toBe(0);
         expect(change[1]).toBe('Z');
@@ -84,8 +86,9 @@ describe('testing `source`', () => {
             onSubstitute: (_, _1) => {}
         });
         
-        alphabetS.remove(1);
+        const removedItem = alphabetS.remove(1);
         
+        expect(removedItem).toBe('b');
         expect(alphabetS.at(1)).toBe('c');
         expect(changeIndex).toBe(1);
     });
