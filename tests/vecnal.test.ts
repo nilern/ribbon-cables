@@ -1,5 +1,6 @@
-import {stable, source} from "../js/vecnal";
+import {stable, source, lift} from "../js/vecnal";
 
+import * as sig from "../js/signal";
 import {eq} from "../js/prelude";
 
 describe('testing `stable`', () => {
@@ -91,6 +92,37 @@ describe('testing `source`', () => {
         expect(removedItem).toBe('b');
         expect(alphabetS.at(1)).toBe('c');
         expect(changeIndex).toBe(1);
+    });
+});
+
+describe('testing `lift`', () => {
+    test('Sized & Indexed<T> & Reducible<T>', () => {
+        const answerS = sig.stable(42);
+        const answerZ = lift(answerS);
+        
+        expect(answerZ.size()).toBe(1);
+        
+        expect(answerZ.at(0)).toBe(42);
+        expect(answerZ.at(1)).toBe(undefined);
+        
+        expect(answerZ.reduce((acc, answer) => acc + answer, 5)).toBe(47);
+    });
+    
+    test('reset() dep', () => {
+        const mealS = sig.source(eq, 'raw');
+        const mealZ = lift(mealS);
+        let change = [-1, ''];
+        mealZ.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (_) => {},
+            onSubstitute: (i, v) => change = [i, v]
+        });
+        
+        mealS.reset('cooked');
+        
+        expect(mealZ.at(0)).toBe('cooked');
+        expect(change[0]).toBe(0);
+        expect(change[1]).toBe('cooked');
     });
 });
 
