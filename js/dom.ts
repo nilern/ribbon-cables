@@ -1,5 +1,6 @@
 export type {
     AttributeString, BaseAttributeValue, StyleAttributeValue, AttributeValue,
+    EventHandler,
     ChildValue, Child
 };
 export {
