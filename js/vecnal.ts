@@ -351,6 +351,7 @@ class MappedVecnal<U, T> extends CheckingSubscribingSubscribeableVecnal<U>
     onSubstitute(i: number, v: T) {
         const oldU = this.vs[i];
         const u = this.f(v);
+        this.vs[i] = u;
         
         this.notifySubstitute(i, oldU, u);
     }

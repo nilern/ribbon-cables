@@ -14,7 +14,7 @@
   },
   "scripts": {
     "build": "tsc",
-    "test": "node --experimental-vm-modules node_modules/.bin/jest --coverage",
+    "test": "tsc && node --experimental-vm-modules node_modules/.bin/jest --coverage",
     "docs": "npx typedoc --entryPointStrategy Expand js"
   }
 }

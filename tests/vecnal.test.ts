@@ -52,7 +52,7 @@ describe('testing `source`', () => {
         alphabetS.addISubscriber({
             onInsert: (_, _1) => {},
             onRemove: (_) => {},
-            onSubstitute: (i, v) => notified = true
+            onSubstitute: (_, _1) => notified = true
         });
         
         alphabetS.setAt(1, 'B');
@@ -123,6 +123,82 @@ describe('testing `lift`', () => {
         expect(mealZ.at(0)).toBe('cooked');
         expect(change[0]).toBe(0);
         expect(change[1]).toBe('cooked');
+    });
+});
+
+describe('testing `map`', () => {
+    test('Sized & Indexed<T> & Reducible<T>', () => {
+        const alphabetS = source(eq, ['a', 'b', 'c']);
+        const capitalS = alphabetS.map<string>(eq, (c) => c.toUpperCase());
+        
+        expect(capitalS.size()).toBe(3);
+        expect(capitalS.at(0)).toBe('A');
+        expect(capitalS.at(1)).toBe('B');
+        expect(capitalS.at(2)).toBe('C');
+        expect(capitalS.at(3)).toBe(undefined);
+        expect(capitalS.reduce((acc, c) => acc + c, '')).toBe('ABC');
+    });
+    
+    test('setAt() dep', () => {
+        const alphabetS = source(eq, ['a', 'b', 'c']);
+        const capitalS = alphabetS.map<string>(eq, (c) => c.toUpperCase());
+        let change = [-1, ''];
+        capitalS.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (_) => {},
+            onSubstitute: (i, v) => change = [i, v]
+        });
+        
+        alphabetS.setAt(0, 'b');
+        
+        expect(capitalS.at(0)).toBe('B');
+        expect(change[0]).toBe(0);
+        expect(change[1]).toBe('B');
+        
+        let notified = false;
+        capitalS.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (_) => {},
+            onSubstitute: (_, _1) => notified = true
+        });
+        
+        alphabetS.setAt(0, 'B');
+        
+        expect(capitalS.at(0)).toBe('B');
+        expect(notified).toBeFalsy();
+    });
+    
+    test('insert() dep', () => {
+        const alphabetS = source(eq, ['a', 'b', 'c']);
+        const capitalS = alphabetS.map<string>(eq, (c) => c.toUpperCase());
+        let change = [-1, ''];
+        capitalS.addISubscriber({
+            onInsert: (i, v) => change = [i, v],
+            onRemove: (_) => {},
+            onSubstitute: (_, _1) => {}
+        });
+        
+        alphabetS.insert(0, 'z');
+        
+        expect(capitalS.at(0)).toBe('Z');
+        expect(change[0]).toBe(0);
+        expect(change[1]).toBe('Z');
+    });
+    
+    test('remove() dep', () => {
+        const alphabetS = source(eq, ['a', 'b', 'c']);
+        const capitalS = alphabetS.map<string>(eq, (c) => c.toUpperCase());
+        let changeIndex = -1;
+        capitalS.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (i) => changeIndex = i,
+            onSubstitute: (_, _1) => {}
+        });
+        
+        alphabetS.remove(1);
+        
+        expect(alphabetS.at(1)).toBe('c');
+        expect(changeIndex).toBe(1);
     });
 });
 
