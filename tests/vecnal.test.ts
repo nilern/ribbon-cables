@@ -73,6 +73,7 @@ describe('testing `source`', () => {
         const newItem = alphabetS.insert(0, 'Z');
         
         expect(newItem).toBe('Z');
+        expect(alphabetS.size()).toBe(4);
         expect(alphabetS.at(0)).toBe('Z');
         expect(change[0]).toBe(0);
         expect(change[1]).toBe('Z');
@@ -90,6 +91,7 @@ describe('testing `source`', () => {
         const removedItem = alphabetS.remove(1);
         
         expect(removedItem).toBe('b');
+        expect(alphabetS.size()).toBe(2);
         expect(alphabetS.at(1)).toBe('c');
         expect(changeIndex).toBe(1);
     });
@@ -180,6 +182,7 @@ describe('testing `map`', () => {
         
         alphabetS.insert(0, 'z');
         
+        expect(capitalS.size()).toBe(4);
         expect(capitalS.at(0)).toBe('Z');
         expect(change[0]).toBe(0);
         expect(change[1]).toBe('Z');
@@ -197,6 +200,7 @@ describe('testing `map`', () => {
         
         alphabetS.remove(1);
         
+        expect(capitalS.size()).toBe(2);
         expect(alphabetS.at(1)).toBe('c');
         expect(changeIndex).toBe(1);
     });
