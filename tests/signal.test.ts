@@ -22,16 +22,18 @@ describe('testing `source`', () => {
         let changedV = undefined;
         answerS.addSubscriber({onChange: (v) => changedV = v});
         
-        answerS.reset(5);
+        let answer = answerS.reset(5);
         
+        expect(answer).toBe(5);
         expect(answerS.ref()).toBe(5);
         expect(changedV).toBe(5);
         
         let notified = false;
         answerS.addSubscriber({onChange: (_) => notified = true});
         
-        answerS.reset(5);
+        answer = answerS.reset(5);
         
+        expect(answer).toBe(5);
         expect(answerS.ref()).toBe(5);
         expect(notified).toBeFalsy();
     });
@@ -52,16 +54,18 @@ describe('testing `map`', () => {
         let notifiedLength = 0;
         lengthS.addSubscriber({onChange: (length) => notifiedLength = length});
         
-        nameS.reset('Siegfried');
+        let name = nameS.reset('Siegfried');
         
+        expect(name).toBe('Siegfried');
         expect(lengthS.ref()).toBe(9);
         expect(notifiedLength).toBe(9);
         
         let notified = false;
         lengthS.addSubscriber({onChange: (_) => notified = true});
         
-        nameS.reset('Abendlied');
+        name = nameS.reset('Abendlied');
         
+        expect(name).toBe('Abendlied');
         expect(lengthS.ref()).toBe(9);
         expect(notified).toBeFalsy();
     });
@@ -84,16 +88,18 @@ describe('testing `map2`', () => {
         let notifiedSum = 0;
         sumS.addSubscriber({onChange: (sum) => notifiedSum = sum});
         
-        bS.reset(5);
+        let b = bS.reset(5);
         
+        expect(b).toBe(5);
         expect(sumS.ref()).toBe(6);
         expect(notifiedSum).toBe(6);
         
         let notified = false;
         sumS.addSubscriber({onChange: (_) => notified = true});
         
-        bS.reset(5);
+        b = bS.reset(5);
         
+        expect(b).toBe(5);
         expect(sumS.ref()).toBe(6);
         expect(notified).toBeFalsy();
     });
