@@ -203,7 +203,7 @@ class Differ<T, U> {
                 : goalIndex - 1;
             
             while (currIndex < box.right && goalIndex < box.bottom // Inside `box`
-                   && this.eq(this.curr.at(currIndex), this.goal.at(goalIndex))) // No edit here
+                   && this.eq(this.curr.at(currIndex)!, this.goal.at(goalIndex)!)) // No edit here
             { // Preserve:
                 ++currIndex;
                 ++goalIndex;
@@ -250,7 +250,7 @@ class Differ<T, U> {
                 : currIndex + 1;
                 
             while (currIndex > box.left && goalIndex > box.top // Inside `box`
-                   && this.eq(this.curr.at(currIndex - 1), this.goal.at(goalIndex - 1))) // No edit here
+                   && this.eq(this.curr.at(currIndex - 1)!, this.goal.at(goalIndex - 1)!)) // No edit here
             { // Preserve:
                 --currIndex;
                 --goalIndex;
@@ -310,7 +310,7 @@ class Differ<T, U> {
         let goalIndex = start.goalIndex;
         
         while (currIndex < end.currIndex && goalIndex < end.goalIndex // Before `end`
-               && this.eq(this.curr.at(currIndex), this.goal.at(goalIndex))) // No edit here
+               && this.eq(this.curr.at(currIndex)!, this.goal.at(goalIndex)!)) // No edit here
         { // Preserve:
             ++currIndex;
             ++goalIndex;

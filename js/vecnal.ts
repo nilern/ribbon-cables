@@ -47,7 +47,7 @@ interface ListBuilder<Item, Coll> {
 abstract class Vecnal<T> implements IVecnal<T> {
     abstract size(): number;
     
-    abstract at(i: number): T;
+    abstract atOr(i: number, defaultValue: T): T;
     
     abstract reduce<U>(f: (acc: U, v: T) => U, acc: U): U;
     
@@ -56,6 +56,8 @@ abstract class Vecnal<T> implements IVecnal<T> {
     abstract notifyInsert(i: number, v: T): void;
     abstract notifyRemove(i: number): void;
     abstract notifySubstitute(i: number, v: T, u: T): void;
+    
+    at(i: number): T | undefined { return this.atOr(i, undefined as T); }
     
     map<U>(equals: (x: U, y: U) => boolean, f: (v: T) => U): Vecnal<U> {
         return new MappedVecnal(equals, f, this);
@@ -193,7 +195,11 @@ class ConstVecnal<T> extends NonNotifyingVecnal<T> {
     
     size(): number { return this.vs.length; }
     
-    at(i: number): T { return this.vs[i]; }
+    atOr(i: number, defaultValue: T): T {
+        if (i >= this.vs.length) { return defaultValue; }
+    
+        return this.vs[i];
+    }
     
     reduce<U>(f: (acc: U, v: T) => U, acc: U): U { return this.vs.reduce(f, acc); }
 }
@@ -216,7 +222,11 @@ class SourceVecnal<T> extends CheckingSubscribeableVecnal<T> implements Spliceab
     
     size(): number { return this.vs.length; }
     
-    at(i: number): T { return this.vs[i]; }
+    atOr(i: number, defaultValue: T): T {
+        if (i >= this.vs.length) { return defaultValue; }
+    
+        return this.vs[i];
+    }
     
     reduce<U>(f: (acc: U, v: T) => U, acc: U): U { return this.vs.reduce(f, acc); }
     
@@ -277,7 +287,7 @@ class MappedVecnal<U, T> extends CheckingSubscribingSubscribeableVecnal<U>
             const newLen = this.input.size();
             if (oldLen < newLen) {
                 for (let i = oldLen; i < newLen; ++i) {
-                    this.vs.push(this.f(this.input.at(i)));
+                    this.vs.push(this.f(this.input.at(i)!));
                 }
             } else if (oldLen > newLen) {
                 this.vs.splice(newLen);
@@ -290,14 +300,18 @@ class MappedVecnal<U, T> extends CheckingSubscribingSubscribeableVecnal<U>
         return this.vs.length;
     }
     
-    at(i: number): U {
+    atOr(i: number, defaultValue: U): U {
         if (this.subscribers.size === 0) {
             // If `this` has no subscribers it does not watch deps either so `this.vs` could be stale:
-            this.vs[i] = this.f(this.input.at(i));
+            if (i >= this.input.size()) { return defaultValue; }
+            
+            this.vs[i] = this.f(this.input.at(i)!);
             // OPTIMIZE: This combined with dep `at()`:s in ctor makes signal graph construction
             // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
             // would result from eagerly subscribing in ctor...
         }
+        
+        if (i >= this.vs.length) { return defaultValue; }
         
         return this.vs[i];
     }
@@ -361,7 +375,7 @@ class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
         this.indexMapping = [];
         const len = input.size();
         for (let i = 0; i < len; ++i) {
-            const v = input.at(i);
+            const v = input.at(i)!;
             if (f(v)) {
                 this.vs.push(v);
                 this.indexMapping[i] = this.vs.length - 1;
@@ -378,7 +392,7 @@ class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
             this.indexMapping.splice(0);
             const len = this.input.size();
             for (let i = 0; i < len; ++i) {
-                const v = this.input.at(i);
+                const v = this.input.at(i)!;
                 if (this.f(v)) {
                     this.vs.push(v);
                     this.indexMapping[i] = this.vs.length - 1;
@@ -401,7 +415,7 @@ class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
             this.indexMapping.splice(0);
             const len = this.input.size();
             for (let i = 0; i < len; ++i) {
-                const v = this.input.at(i);
+                const v = this.input.at(i)!;
                 if (this.f(v)) {
                     this.vs.push(v);
                     this.indexMapping[i] = this.vs.length - 1;
@@ -417,14 +431,14 @@ class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
         return this.vs.reduce(f, acc);
     }
     
-    at(i: number): T {
+    atOr(i: number, defaultValue: T): T {
         if (this.subscribers.size === 0) {
             // If `this` has no subscribers it does not watch deps either so `this.vs` could be stale:
             this.vs.splice(0);
             this.indexMapping.splice(0);
             const len = this.input.size();
             for (let j = 0; j < len; ++j) {
-                const v = this.input.at(j);
+                const v = this.input.at(j)!;
                 if (this.f(v)) {
                     this.vs.push(v);
                     this.indexMapping[j] = this.vs.length - 1;
@@ -439,6 +453,8 @@ class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
             // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
             // would result from eagerly subscribing in ctor...
         }
+        
+        if (i >= this.vs.length) { return defaultValue; }
         
         return this.vs[i];
     }
@@ -619,8 +635,10 @@ class ConcatVecnal<T> extends SubscribingSubscribeableVecnal<T> {
         }
     }
     
-    at(index: number): T {
+    atOr(index: number, defaultValue: T): T {
         if (this.subscribers.size > 0) {
+            if (index >= this.vs.length) { return defaultValue; }
+        
             return this.vs[index];
         } else {
             // If `this` has no subscribers it does not watch deps either so `this.vs` could be stale:
@@ -630,7 +648,7 @@ class ConcatVecnal<T> extends SubscribingSubscribeableVecnal<T> {
                     const depLen = dep.size();
                 
                     if (subi < depLen) {
-                        return dep.at(subi);
+                        return dep.at(subi)!;
                     }
                     
                     subi -= depLen;
@@ -683,8 +701,8 @@ class SingleElementVecnal<T> extends SubscribingSubscribeableVecnal<T>
     
     size(): number { return 1; }
     
-    at(i: number): T {
-        if (i !== 0) { throw Error("Out of bounds"); }
+    atOr(i: number, defaultValue: T): T {
+        if (i !== 0) { return defaultValue; }
         
         return this.v;
     }
@@ -800,17 +818,20 @@ class ViewVecnal<T> extends SubscribingSubscribeableVecnal<Signal<T>>
         return this.signals.length;
     }
     
-    at(i: number): Signal<T> {
+    atOr(i: number, defaultValue: Signal<T>): Signal<T> {
         if (this.subscribers.size === 0) {
             // If `this` has no subscribers it does not watch deps either so `this.signals` could be stale:
-            const requiredLen = i + 1;
-            for (let j = this.signals.length; j < requiredLen; ++j) {
-                this.signals[j] = signal.source(eq, this.input.at(j));
+            if (i >= this.input.size()) { return defaultValue; }
+            
+            if (!this.signals[i]) {
+                this.signals[i] = signal.source(eq, this.input.at(i) as T);
             }
             // OPTIMIZE: This combined with dep `at()`:s in ctor makes signal graph construction
             // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
             // would result from eagerly subscribing in ctor...
         }
+        
+        if (i >= this.signals.length) { return defaultValue; }
         
         return this.signals[i];
     }
@@ -818,9 +839,21 @@ class ViewVecnal<T> extends SubscribingSubscribeableVecnal<Signal<T>>
     reduce<V>(f: (acc: V, v: Signal<T>) => V, acc: V): V {
         if (this.subscribers.size === 0) {
             // If `this` has no subscribers it does not watch deps either so `this.signals` could be stale:
-            const requiredLen = this.input.size();
-            for (let j = this.signals.length; j < requiredLen; ++j) {
-                this.signals[j] = signal.source(eq, this.input.at(j));
+            const len = this.input.size();
+            
+            // Drop excess from `this.signals`:
+            if (this.signals.length > len) { this.signals.splice(len); }
+            
+            // Initialize uninitialized `this.signals` elements:
+            this.signals.forEach((optSig, i) => {
+                if (!optSig) {
+                    this.signals[i] = signal.source(eq, this.input.at(i) as T);
+                }
+            })
+            
+            // Fill tail of `this.signals`:
+            for (let j = this.signals.length; j < len; ++j) {
+                this.signals.push(signal.source(eq, this.input.at(j) as T));
             }
             // OPTIMIZE: This combined with dep `at()`:s in ctor makes signal graph construction
             // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
@@ -875,7 +908,7 @@ class ImuxVecnal<T> extends SubscribingSubscribeableVecnal<T>
         for (const edit of edits) {
             if (edit instanceof diff.Insert) {
                 const i = edit.index;
-                const v = newVs.at(i);
+                const v = newVs.at(i)!;
                 this.vs.splice(i, 0, v);
                 this.notifyInsert(i, v);
             } else if (edit instanceof diff.Delete) {
@@ -885,7 +918,7 @@ class ImuxVecnal<T> extends SubscribingSubscribeableVecnal<T>
             } else if (edit instanceof diff.Substitute) {
                 const i = edit.index;
                 const u = this.vs[i];
-                const v = newVs.at(i);
+                const v = newVs.at(i)!;
                 this.vs[i] = v;
                 this.notifySubstitute(i, u, v);
             } else {
@@ -906,12 +939,18 @@ class ImuxVecnal<T> extends SubscribingSubscribeableVecnal<T>
         }
     }
     
-    at(index: number): T {
+    atOr(index: number, defaultValue: T): T {
         if (this.subscribers.size > 0) {
+            if (index >= this.vs.length) { return defaultValue; }
+        
             return this.vs[index];
         } else {
             // If `this` has no subscribers it does not watch deps either so `this.vs` could be stale:
-            return this.input.ref().at(index);
+            const newVs = this.input.ref();
+            
+            if (index >= newVs.size()) { return defaultValue; }
+            
+            return newVs.at(index)!;
             // OPTIMIZE: This combined with dep `reduce()`:s in ctor makes signal graph construction
             // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
             // would result from eagerly subscribing in ctor...
