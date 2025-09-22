@@ -466,64 +466,97 @@ class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
     
     unsubscribeFromDeps() { this.input.removeISubscriber(this); }
     
-    private insert(i: number, v: T) {
-        const j = i > 0 ? this.indexMapping[i - 1] + 1 : 0;
+    private insertionIndex(inputIndex: number): number {
+        if (inputIndex >= this.indexMapping.length) {
+            return this.vs.length; // Insertion at the end
+        }
         
-        // Insert to output:
-        this.vs.splice(j, 0, v);
+        {
+            const insertionIndex = this.indexMapping[inputIndex]; 
+            if (insertionIndex >= 0) {
+                return insertionIndex; // Insertion before `this.input[inputIndex]`
+            }
+        }
         
-        // Update index mapping:
+        for (let i = inputIndex - 1; i >= 0; --i) {
+            let prevIndex = this.indexMapping[i];
+            if (prevIndex >= 0) {
+                return prevIndex + 1; // Insertion after `this.input[i]`
+            }
+        }
+        
+        return 0; // Insertion at the start
+    }
+    
+    private insertInsertionIndex(inputIndex: number, insertionIndex: number) {
+        this.indexMapping[inputIndex] = insertionIndex;
+        
+        const len = this.indexMapping.length;
+        for (let i = inputIndex + 1; i < len; ++i) {
+            const outputIndex = this.indexMapping[i];
+            this.indexMapping[i] = outputIndex >= 0
+                ? outputIndex + 1
+                : outputIndex;
+        }
+    }
+    
+    private spliceInsertionIndex(inputIndex: number, insertionIndex: number) {
         this.indexMapping.push(FilteredVecnal.NO_INDEX);
-        const newLen = this.indexMapping.length;
-        let newIndex = j;
-        for (let k = i; k < newLen; ++k) {
-            const tmp = this.indexMapping[k];
-            this.indexMapping[k] = newIndex;
-            newIndex = tmp >= 0 ? tmp + 1 : tmp;
+            
+        for (let i = this.indexMapping.length - 1; i > inputIndex; --i) {
+            const outputIndex = this.indexMapping[i - 1];
+            this.indexMapping[i] = outputIndex >= 0
+                ? outputIndex + 1
+                : outputIndex;
         }
         
-        this.notifyInsert(j, v);
+        this.indexMapping[inputIndex] = insertionIndex;
     }
     
-    private remove(i: number) {
-        const j = this.indexMapping[i];
+    private removeRemovalIndex(inputIndex: number) {
+        this.indexMapping[inputIndex] = FilteredVecnal.NO_INDEX;
         
-        // Remove from output:
-        this.vs.splice(j, 1);
-        
-        // Update index mapping:
+        const len = this.indexMapping.length;
+        for (let i = inputIndex + 1; i < len; ++i) {
+            const outputIndex = this.indexMapping[i];
+            this.indexMapping[i] = outputIndex >= 0
+                ? outputIndex - 1
+                : outputIndex;
+        }
+    }
+    
+    private spliceRemovalIndex(inputIndex: number) {
         const newLen = this.input.size() - 1;
-        for (let k = i; k < newLen; ++k) {
-            const oldIndexOfNext = this.indexMapping[k + 1];
-            this.indexMapping[k] = oldIndexOfNext >= 0 ? oldIndexOfNext - 1 : oldIndexOfNext;
+        for (let i = inputIndex; i < newLen; ++i) {
+            const outputIndex = this.indexMapping[i + 1];
+            this.indexMapping[i] = outputIndex >= 0
+                ? outputIndex - 1
+                : outputIndex;
         }
-        this.indexMapping.pop();
         
-        this.notifyRemove(j);
+        this.indexMapping.pop();
     }
     
-    private substitute(i: number, v: T) {
-        let j = this.indexMapping[i];
+    private substitute(inputIndex: number, v: T) {
+        let substIndex = this.indexMapping[inputIndex];
         
-        const oldV = this.vs[j];
-        this.vs[j] = v;
+        const oldV = this.vs[substIndex];
+        this.vs[substIndex] = v;
         
-        this.notifySubstitute(j, oldV, v);
+        this.notifySubstitute(substIndex, oldV, v);
     }
     
     onInsert(i: number, v: T) {
         if (this.f(v)) {
-            this.insert(i, v);
+            const insertionIndex = this.insertionIndex(i);
+        
+            this.vs.splice(insertionIndex, 0, v);
+            this.spliceInsertionIndex(i, insertionIndex);
+            
+            this.notifyInsert(insertionIndex, v);
         } else {
             // Output does not change but still need to update index mapping:
-            this.indexMapping.push(FilteredVecnal.NO_INDEX);
-            const newLen = this.indexMapping.length;
-            let newIndex = FilteredVecnal.NO_INDEX;
-            for (let k = i; k < newLen; ++k) {
-                const tmp = this.indexMapping[k];
-                this.indexMapping[k] = newIndex;
-                newIndex = tmp;
-            }
+            this.indexMapping.splice(i, 0, FilteredVecnal.NO_INDEX);
         }
     }
     
@@ -531,15 +564,15 @@ class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
         const j = this.indexMapping[i];
         
         if (j >= 0) {
-            this.remove(i);
+            const removalIndex = this.indexMapping[i];
+        
+            this.vs.splice(removalIndex, 1);
+            this.spliceRemovalIndex(i);
+            
+            this.notifyRemove(removalIndex);
         } else {
             // Output does not change but still need to update index mapping:
-            const newLen = this.input.size() - 1;
-            for (let k = i; k < newLen; ++k) {
-                const oldIndexOfNext = this.indexMapping[k + 1];
-                this.indexMapping[k] = oldIndexOfNext;
-            }
-            this.indexMapping.pop();
+            this.indexMapping.splice(i, 1);
         }
     }
     
@@ -550,11 +583,21 @@ class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
             if (this.f(v)) { // New value not filtered out either
                 this.substitute(i, v);
             } else { // New value is filtered out
-                this.remove(i);
+                const removalIndex = this.indexMapping[i];
+        
+                this.vs.splice(removalIndex, 1);
+                this.removeRemovalIndex(i);
+                
+                this.notifyRemove(removalIndex);
             }
         } else { // Old value was filtered out
             if (this.f(v)) { // New value is not filtered out
-                this.insert(i, v);
+                const insertionIndex = this.insertionIndex(i);
+        
+                this.vs.splice(i, 0, v);
+                this.insertInsertionIndex(i, insertionIndex);
+                
+                this.notifyInsert(insertionIndex, v);
             } // else still filtered out => no change
         }
     }
