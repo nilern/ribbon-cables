@@ -180,17 +180,18 @@ abstract class CheckingSubscribingSubscribeableVecnal<T>
     }
 }
 
-class ConstVecnal<T> extends NonNotifyingVecnal<T> {
+class StableVecnal<T> extends NonNotifyingVecnal<T> {
     private readonly vs: readonly T[];
     
     constructor(
-        vs: Iterable<T>
+        vs: Reducible<T>
     ) {
         super();
         
-        const builder = [];
-        for (const v of vs) { builder.push(v); }
-        this.vs = builder;
+        this.vs = vs.reduce<T[]>((acc, v) => {
+            acc.push(v);
+            return acc;
+        }, []);
     }
     
     size(): number { return this.vs.length; }
@@ -204,7 +205,7 @@ class ConstVecnal<T> extends NonNotifyingVecnal<T> {
     reduce<U>(f: (acc: U, v: T) => U, acc: U): U { return this.vs.reduce(f, acc); }
 }
 
-function stable<T>(vs: Iterable<T>): Vecnal<T> { return new ConstVecnal(vs); }
+function stable<T>(vs: Reducible<T>): Vecnal<T> { return new StableVecnal(vs); }
 
 class SourceVecnal<T> extends CheckingSubscribeableVecnal<T> implements Spliceable<T> {
     private readonly vs: T[]; // OPTIMIZE: RRB vector
