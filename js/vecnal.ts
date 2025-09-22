@@ -211,13 +211,14 @@ class SourceVecnal<T> extends CheckingSubscribeableVecnal<T> implements Spliceab
     
     constructor(
         equals: (x: T, y: T) => boolean,
-        vs: Iterable<T>
+        vs: Reducible<T>
     ) {
         super(equals);
         
-        const builder = [];
-        for (const v of vs) { builder.push(v); }
-        this.vs = builder;
+        this.vs = vs.reduce<typeof this.vs>((acc, v) => {
+            acc.push(v);
+            return acc;
+        }, []);
     }
     
     size(): number { return this.vs.length; }
@@ -257,7 +258,7 @@ class SourceVecnal<T> extends CheckingSubscribeableVecnal<T> implements Spliceab
     }
 }
 
-function source<T>(equals: (x: T, y: T) => boolean, initVals: Iterable<T>
+function source<T>(equals: (x: T, y: T) => boolean, initVals: Reducible<T>
 ): Vecnal<T> & Spliceable<T> {
     return new SourceVecnal(equals, initVals);
 }
