@@ -642,10 +642,10 @@ class ConcatVecnalDepSubscriber<T> implements IndexedSubscriber<T> {
 }
 
 class ConcatVecnal<T> extends SubscribingSubscribeableVecnal<T> {
-    // Some members need to be public for `ConcatVecnalDepSubscriber`. This class itself need not be
-    // a public module member though so it will be fine:
-    readonly vs: T[]; // OPTIMIZE: RRB vector
-    readonly offsets: number[];
+    // Some members need to be public for `ConcatVecnalDepSubscriber`.
+    // This class itself is not a public module member though so it is not too bad:
+    public readonly vs: T[]; // OPTIMIZE: RRB vector
+    public readonly offsets: number[];
     private readonly depSubscribers: IndexedSubscriber<T>[];
     
     constructor(
@@ -704,8 +704,7 @@ class ConcatVecnal<T> extends SubscribingSubscribeableVecnal<T> {
             // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
             // would result from eagerly subscribing in ctor...
             
-            // TODO: Should it be possible to return a default (usually `undefined`/sentinel) instead?:
-            throw Error("Out of bounds");
+            return defaultValue;
         }
     }
     

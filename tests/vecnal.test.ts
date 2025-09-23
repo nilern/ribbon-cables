@@ -1,4 +1,4 @@
-import {stable, source, lift} from "../js/vecnal";
+import {stable, source, lift, concat} from "../js/vecnal";
 
 import * as sig from "../js/signal";
 import {eq} from "../js/prelude";
@@ -306,6 +306,116 @@ describe('testing `filter`', () => {
         
         expect(oddS.size()).toBe(2);
         expect(change).toBe(noChange);
+    });
+});
+
+describe('testing `concat`', () => {
+    test('Sized & Indexed<T> & Reducible<T>', () => {
+        const conS = stable(['c', 'o', 'n']);
+        const catS = stable(['c', 'a', 't']);
+        const eS = stable(['e']);
+        const nateS = stable(['n', 'a', 't', 'e']);
+        const catedS = concat(conS, catS, eS, nateS);
+        
+        expect(catedS.size()).toBe(11);
+        
+        expect(catedS.at(0)).toBe('c');
+        expect(catedS.at(2)).toBe('n');
+        expect(catedS.at(4)).toBe('a');
+        expect(catedS.at(6)).toBe('e');
+        expect(catedS.at(8)).toBe('a');
+        expect(catedS.at(10)).toBe('e');
+        expect(catedS.at(11)).toBe(undefined);
+        
+        expect(catedS.reduce((acc, c) => acc + c, '')).toBe('concatenate');
+    });
+    
+    test('setAt() dep', () => {
+        const conS = source(eq, ['c', 'o', 'n']);
+        const catS = source(eq, ['c', 'a', 't']);
+        const eS = source(eq, ['e']);
+        const nateS = source(eq, ['n', 'a', 't', 'e']);
+        const catedS = concat(conS, catS, eS, nateS);
+        let change = [-1, ''];
+        catedS.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (_) => {},
+            onSubstitute: (i, v) => change = [i, v]
+        });
+        
+        conS.setAt(0, 'C');
+        
+        expect(catedS.at(0)).toBe('C');
+        expect(change[0]).toBe(0);
+        expect(change[1]).toBe('C');
+        
+        catS.setAt(2, 'T');
+        
+        expect(catedS.at(5)).toBe('T');
+        expect(change[0]).toBe(5);
+        expect(change[1]).toBe('T');
+        
+        expect(catedS.size()).toBe(11);
+        expect(catedS.at(11)).toBe(undefined);
+        expect(catedS.reduce((acc, c) => acc + c, '')).toBe('ConcaTenate');
+    });
+    
+    test('insert() dep', () => {
+        const conS = source(eq, ['c', 'o', 'n']);
+        const catS = source(eq, ['c', 'a', 't']);
+        const eS = source(eq, ['e']);
+        const nateS = source(eq, ['n', 'a', 't', 'e']);
+        const catedS = concat(conS, catS, eS, nateS);
+        let change = [-1, ''];
+        catedS.addISubscriber({
+            onInsert: (i, v) => change = [i, v],
+            onRemove: (_) => {},
+            onSubstitute: (_, _1) => {}
+        });
+        
+        conS.insert(0, 'i');
+        
+        expect(catedS.at(0)).toBe('i');
+        expect(change[0]).toBe(0);
+        expect(change[1]).toBe('i');
+        
+        eS.insert(1, 't');
+        
+        expect(catedS.at(8)).toBe('t');
+        expect(change[0]).toBe(8);
+        expect(change[1]).toBe('t');
+        
+        expect(catedS.size()).toBe(13);
+        expect(catedS.at(13)).toBe(undefined);
+        expect(catedS.reduce((acc, c) => acc + c, '')).toBe('iconcatetnate');
+    });
+    
+    test('remove() dep', () => {
+        const conS = source(eq, ['c', 'o', 'n']);
+        const catS = source(eq, ['c', 'a', 't']);
+        const eS = source(eq, ['e']);
+        const nateS = source(eq, ['n', 'a', 't', 'e']);
+        const catedS = concat(conS, catS, eS, nateS);
+        let change = -1;
+        catedS.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (i) => change = i,
+            onSubstitute: (_, _1) => {}
+        });
+        
+        conS.remove(0);
+        
+        expect(catedS.at(0)).toBe('o');
+        expect(change).toBe(0);
+        
+        catS.remove(2);
+        
+        expect(catedS.at(4)).toBe('e');
+        expect(change).toBe(4);
+        
+        expect(catedS.size()).toBe(9);
+        expect(catedS.at(9)).toBe(undefined);
+        expect(catedS.reduce((acc, c) => acc + c, '')).toBe('oncaenate');
     });
 });
 
