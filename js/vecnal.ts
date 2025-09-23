@@ -610,34 +610,43 @@ class ConcatVecnalDepSubscriber<T> implements IndexedSubscriber<T> {
     ) {}
     
     onInsert(subIndex: number, v: T) {
-        const i = this.vecnal.offsets[this.depIndex] + subIndex;
-        this.vecnal.vs.splice(i, 0, v);
+        const insertionIndex = this.vecnal.offsets[this.depIndex] + subIndex;
+        
+        this.vecnal.vs.splice(insertionIndex, 0, v);
+        
         {
             const len = this.vecnal.offsets.length;
-            for (let j = this.depIndex + 1; j < len; ++j) {
-                ++this.vecnal.offsets[j];
+            for (let i = this.depIndex + 1; i < len; ++i) {
+                ++this.vecnal.offsets[i];
             }
         }
-        this.vecnal.notifyInsert(i, v);
+        
+        this.vecnal.notifyInsert(insertionIndex, v);
     }
     
     onRemove(subIndex: number) {
-        const i = this.vecnal.offsets[this.depIndex] + subIndex;
-        this.vecnal.vs.splice(i, 1);
+        const removalIndex = this.vecnal.offsets[this.depIndex] + subIndex;
+        
+        this.vecnal.vs.splice(removalIndex, 1);
+        
         {
             const len = this.vecnal.offsets.length;
-            for (let j = this.depIndex + 1; j < len; ++j) {
-                --this.vecnal.offsets[j];
+            for (let i = this.depIndex + 1; i < len; ++i) {
+                --this.vecnal.offsets[i];
             }
         }
-        this.vecnal.notifyRemove(i);
+        
+        this.vecnal.notifyRemove(removalIndex);
     }
     
     onSubstitute(subIndex: number, v: T) {
-        const i = this.vecnal.offsets[this.depIndex] + subIndex;
-        const oldv = this.vecnal.vs[i];
-        this.vecnal.vs[i] = v;
-        this.vecnal.notifySubstitute(i, oldv, v);
+        const substIndex = this.vecnal.offsets[this.depIndex] + subIndex;
+        
+        const oldv = this.vecnal.vs[substIndex];
+        
+        this.vecnal.vs[substIndex] = v;
+        
+        this.vecnal.notifySubstitute(substIndex, oldv, v);
     }
 }
 
@@ -670,23 +679,19 @@ class ConcatVecnal<T> extends SubscribingSubscribeableVecnal<T> {
     }
     
     size(): number {
-        if (this.subscribers.size > 0) {
-            return this.vs.length;
-        } else {
+        if (this.subscribers.size === 0) {
             // If `this` has no subscribers it does not watch deps either so `this.vs` could be stale:
             return this.deps.reduce((acc, dep) => acc + dep.size(), 0);
             // OPTIMIZE: This combined with dep `reduce()`:s in ctor makes signal graph construction
             // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
             // would result from eagerly subscribing in ctor...
         }
+        
+        return this.vs.length;
     }
     
     atOr(index: number, defaultValue: T): T {
-        if (this.subscribers.size > 0) {
-            if (index >= this.vs.length) { return defaultValue; }
-        
-            return this.vs[index];
-        } else {
+        if (this.subscribers.size === 0) {
             // If `this` has no subscribers it does not watch deps either so `this.vs` could be stale:
             {
                 let subi = index;
@@ -706,18 +711,22 @@ class ConcatVecnal<T> extends SubscribingSubscribeableVecnal<T> {
             
             return defaultValue;
         }
+        
+        if (index >= this.vs.length) { return defaultValue; }
+        
+        return this.vs[index];
     }
     
     reduce<U>(f: (acc: U, v: T) => U, acc: U): U {
-        if (this.subscribers.size > 0) {
-            return this.vs.reduce(f, acc);
-        } else {
+        if (this.subscribers.size === 0) {
             // If `this` has no subscribers it does not watch deps either so `this.vs` could be stale:
             return this.deps.reduce((acc, dep) => dep.reduce(f, acc), acc);
             // OPTIMIZE: This combined with dep `reduce()`:s in ctor makes signal graph construction
             // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
             // would result from eagerly subscribing in ctor...
         }
+        
+        return this.vs.reduce(f, acc);
     }
     
     subscribeToDeps() {
