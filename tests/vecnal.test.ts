@@ -419,3 +419,106 @@ describe('testing `concat`', () => {
     });
 });
 
+describe('testing `reduceS`', () => {
+    test('ref()', () => {
+        const kS = sig.stable(1);
+        const natS = stable([1, 2, 3, 4, 5]);
+        const factS =
+            natS.reduceS<number>(eq, (acc, n) => Math.abs(acc) * Math.abs(n), kS);
+        
+        expect(factS.ref()).toBe(120);
+    });
+    
+    test('reset() dep', () => {
+        const kS = sig.source(eq, 1);
+        const natS = stable([1, 2, 3, 4, 5]);
+        const factS =
+            natS.reduceS<number>(eq, (acc, n) => Math.abs(acc) * Math.abs(n), kS);
+        const noChange = 0;
+        let change = noChange;
+        factS.addSubscriber({
+            onChange: (v) => change = v
+        });
+        
+        kS.reset(3);
+        
+        expect(factS.ref()).toBe(360);
+        expect(change).toBe(360);
+        
+        change = noChange;
+        kS.reset(-3);
+        
+        expect(factS.ref()).toBe(360);
+        expect(change).toBe(noChange);
+    });
+    
+    test('setAt() dep', () => {
+        const kS = sig.stable(1);
+        const natS = source(eq, [1, 2, 3, 4, 5]);
+        const factS =
+            natS.reduceS<number>(eq, (acc, n) => Math.abs(acc) * Math.abs(n), kS);
+        const noChange = 0;
+        let change = noChange;
+        factS.addSubscriber({
+            onChange: (v) => change = v
+        });
+        
+        natS.setAt(2, 9);
+        
+        expect(factS.ref()).toBe(360);
+        expect(change).toBe(360);
+        
+        change = noChange;
+        natS.setAt(2, -9);
+        
+        expect(factS.ref()).toBe(360);
+        expect(change).toBe(noChange);
+    });
+    
+    test('insert() dep', () => {
+        const kS = sig.stable(1);
+        const natS = source(eq, [1, 2, 3, 4, 5]);
+        const factS =
+            natS.reduceS<number>(eq, (acc, n) => Math.abs(acc) * Math.abs(n), kS);
+        const noChange = 0;
+        let change = noChange;
+        factS.addSubscriber({
+            onChange: (v) => change = v
+        });
+        
+        natS.insert(0, 0);
+        
+        expect(factS.ref()).toBe(0);
+        expect(change).toBe(0);
+        
+        change = noChange;
+        natS.insert(6, 6);
+        
+        expect(factS.ref()).toBe(0);
+        expect(change).toBe(noChange);
+    });
+    
+    test('insert() dep', () => {
+        const kS = sig.stable(1);
+        const natS = source(eq, [1, 2, 3, 4, 5]);
+        const factS =
+            natS.reduceS<number>(eq, (acc, n) => Math.abs(acc) * Math.abs(n), kS);
+        const noChange = 0;
+        let change = noChange;
+        factS.addSubscriber({
+            onChange: (v) => change = v
+        });
+        
+        natS.remove(4);
+        
+        expect(factS.ref()).toBe(24);
+        expect(change).toBe(24);
+        
+        change = noChange;
+        natS.remove(0);
+        
+        expect(factS.ref()).toBe(24);
+        expect(change).toBe(noChange);
+    });
+});
+

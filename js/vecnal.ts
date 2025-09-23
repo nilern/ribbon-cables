@@ -795,7 +795,7 @@ class ReducedSignal<U, T> extends CheckingSubscribingSubscribeableSignal<U>
     ref(): U {
         if (this.subscribers.size === 0) {
             // If `this` has no subscribers it does not watch deps either so `this.v` could be stale:
-            this.v = this.inputColl.reduce(this.f, this.inputAcc.ref());
+            return this.inputColl.reduce(this.f, this.inputAcc.ref());
             // OPTIMIZE: This combined with dep `ref()`:s in ctor makes signal graph construction
             // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
             // would result from eagerly subscribing in ctor...
