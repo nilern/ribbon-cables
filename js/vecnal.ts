@@ -70,7 +70,9 @@ abstract class Vecnal<T> implements IVecnal<T> {
         return new ReducedSignal(equals, f, accS, this);
     }
     
-    view(): Vecnal<Signal<T>> { return new ViewVecnal(this); }
+    // TODO: Rename to e.g. "insulate":
+    // TODO: `T | undefined` when `undefined <: T`:
+    view(): Vecnal<Signal<T | undefined>> { return new ViewVecnal(this); }
     
     mux<Coll>(builders: () => ListBuilder<T, Coll>): Signal<Coll> {
         return this.reduceS(eq, (builder, v) => {
@@ -96,7 +98,7 @@ abstract class NonNotifyingVecnal<T> extends Vecnal<T> {
 }
 
 abstract class SubscribeableVecnal<T> extends Vecnal<T> {
-    protected readonly subscribers = new Set<IndexedSubscriber<T>>();
+    protected readonly subscribers = new Set<IndexedSubscriber<T>>(); // TODO: `Set<WeakRef<`
     
     addISubscriber(subscriber: IndexedSubscriber<T>) {
         this.subscribers.add(subscriber);
@@ -835,6 +837,8 @@ class ReducedSignal<U, T> extends CheckingSubscribingSubscribeableSignal<U>
     }
 }
 
+// TODO: SortedVecnal (backed by an array and binary search)
+
 class ThunkSignal<T> extends NonNotifyingSignal<T> {
     constructor(
         private readonly f: () => T
@@ -845,10 +849,70 @@ class ThunkSignal<T> extends NonNotifyingSignal<T> {
     ref(): T { return this.f(); }
 }
 
-class ViewVecnal<T> extends SubscribingSubscribeableVecnal<Signal<T>>
+class VecnalItemSignal<T> extends CheckingSubscribingSubscribeableSignal<T | undefined>
     implements IndexedSubscriber<T>
 {
-    private readonly signals: (Signal<T> & Reset<T>)[]; // OPTIMIZE: RRB vector
+    private v: T | undefined;
+
+    constructor(
+        equals: (x: T | undefined, y: T | undefined) => boolean,
+        private readonly input: Vecnal<T>,
+        private index: number
+    ) {
+        super(equals);
+        
+        this.v = input.at(index);
+    }
+    
+    ref(): T | undefined {
+        if (this.subscribers.size === 0) {
+            this.v = this.input.at(this.index);
+        }
+        
+        return this.v;
+    }
+    
+    subscribeToDeps() {
+        this.input.addISubscriber(this);
+    }
+    
+    unsubscribeFromDeps() { this.input.removeISubscriber(this); }
+    
+    onInsert(i: number, _: T) {
+        if (i <= this.index) {
+            ++this.index
+        }
+    }
+    
+    onRemove(i: number) {
+        if (i === this.index) {
+            const oldVal = this.v;
+            this.v = undefined;
+            
+            this.unsubscribeFromDeps();
+            
+            this.notify(oldVal, undefined)
+        }
+        
+        if (i < this.index) {
+            --this.index;
+        }
+    }
+    
+    onSubstitute(i: number, newVal: T) {
+        if (i === this.index) {
+            const oldVal = this.v;
+            this.v = newVal;
+            
+            this.notify(oldVal, newVal);
+        }
+    }
+}
+
+class ViewVecnal<T> extends SubscribingSubscribeableVecnal<Signal<T | undefined>>
+    implements IndexedSubscriber<T>
+{
+    private readonly signals: VecnalItemSignal<T>[]; // OPTIMIZE: RRB vector
     
     constructor(
         private readonly input: Vecnal<T>
@@ -856,8 +920,10 @@ class ViewVecnal<T> extends SubscribingSubscribeableVecnal<Signal<T>>
         super();
         
         this.signals = [];
-        input.reduce((_, v) => { this.signals.push(signal.source(eq, v)); },
-            /*HACK:*/ undefined as void);
+        input.reduce((i, v) => {
+            this.signals.push(new VecnalItemSignal(eq, input, i));
+            return i + 1;
+        }, 0);
     }
     
     size(): number {
@@ -872,13 +938,16 @@ class ViewVecnal<T> extends SubscribingSubscribeableVecnal<Signal<T>>
         return this.signals.length;
     }
     
-    atOr(i: number, defaultValue: Signal<T>): Signal<T> {
+    // FIXME: `new VecnalItemSignal` before `this` has subs creates a signal whose `.index` may
+    // become stale before it subscribes:
+    
+    atOr(i: number, defaultValue: Signal<T>): Signal<T | undefined> {
         if (this.subscribers.size === 0) {
             // If `this` has no subscribers it does not watch deps either so `this.signals` could be stale:
             if (i >= this.input.size()) { return defaultValue; }
             
             if (!this.signals[i]) {
-                this.signals[i] = signal.source(eq, this.input.at(i) as T);
+                this.signals[i] = new VecnalItemSignal(eq, this.input, i);
             }
             // OPTIMIZE: This combined with dep `at()`:s in ctor makes signal graph construction
             // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
@@ -890,7 +959,7 @@ class ViewVecnal<T> extends SubscribingSubscribeableVecnal<Signal<T>>
         return this.signals[i];
     }
     
-    reduce<V>(f: (acc: V, v: Signal<T>) => V, acc: V): V {
+    reduce<V>(f: (acc: V, v: Signal<T | undefined>) => V, acc: V): V {
         if (this.subscribers.size === 0) {
             // If `this` has no subscribers it does not watch deps either so `this.signals` could be stale:
             const len = this.input.size();
@@ -901,13 +970,13 @@ class ViewVecnal<T> extends SubscribingSubscribeableVecnal<Signal<T>>
             // Initialize uninitialized `this.signals` elements:
             this.signals.forEach((optSig, i) => {
                 if (!optSig) {
-                    this.signals[i] = signal.source(eq, this.input.at(i) as T);
+                    this.signals[i] = new VecnalItemSignal(eq, this.input, i);
                 }
             })
             
             // Fill tail of `this.signals`:
             for (let j = this.signals.length; j < len; ++j) {
-                this.signals.push(signal.source(eq, this.input.at(j) as T));
+                this.signals.push(new VecnalItemSignal(eq, this.input, j));
             }
             // OPTIMIZE: This combined with dep `at()`:s in ctor makes signal graph construction
             // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
@@ -922,7 +991,7 @@ class ViewVecnal<T> extends SubscribingSubscribeableVecnal<Signal<T>>
     unsubscribeFromDeps() { this.input.removeISubscriber(this); }
     
     onInsert(i: number, v: T) {
-        const sig = signal.source(eq, v);
+        const sig = new VecnalItemSignal(eq, this.input, i);
         this.signals.splice(i, 0, sig);
         
         this.notifyInsert(i, sig);
@@ -934,9 +1003,7 @@ class ViewVecnal<T> extends SubscribingSubscribeableVecnal<Signal<T>>
         this.notifyRemove(i);
     }
     
-    onSubstitute(i: number, v: T) {
-        this.signals[i].reset(v);
-    }
+    onSubstitute(i: number, v: T) {}
 }
 
 type ImuxableVal<T> = Reducible<T> & Sized & Indexed<T>;

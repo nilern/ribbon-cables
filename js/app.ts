@@ -265,7 +265,7 @@ function todoList(ctrl: Ctrl, todoS: Vecnal<Todo>): Node {
         el("ul", {"class": "todo-list"},
             todoS
                 .view()
-                .map(eq, (todoS) => item(ctrl, todoS))))
+                .map(eq, (todoS) => item(ctrl, todoS.map(eq, (v) => /*HACK:*/ v!)))))
 }
 
 function todoFilter(label: string, path: string, isSelected: Signal<boolean>): Node {

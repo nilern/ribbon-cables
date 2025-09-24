@@ -522,3 +522,79 @@ describe('testing `reduceS`', () => {
     });
 });
 
+describe('testing `view`', () => {
+    test('Sized & Indexed<T> & Reducible<T>', () => {
+        const alphabetS = source(eq, ['a', 'b', 'c']);
+        const alphabetZ = alphabetS.view();
+        
+        expect(alphabetZ.size()).toBe(3);
+        
+        expect(alphabetZ.at(0)!.ref()).toBe('a');
+        expect(alphabetZ.at(1)!.ref()).toBe('b');
+        expect(alphabetZ.at(2)!.ref()).toBe('c');
+        expect(alphabetZ.at(3)).toBe(undefined);
+        
+        expect(alphabetZ.reduce((acc, c) => acc + c.ref(), '')).toBe('abc');
+    });
+    
+    test('setAt() dep', () => {
+        const alphabetS = source(eq, ['a', 'b', 'c']);
+        const alphabetZ = alphabetS.view();
+        let change = '' as string | undefined;
+        alphabetZ.at(1)!.addSubscriber({onChange: (v) => change = v});
+        
+        alphabetS.setAt(1, 'B');
+        
+        expect(alphabetZ.at(1)!.ref()).toBe('B');
+        expect(change).toBe('B');
+        
+        let notified = false;
+        alphabetZ.at(1)!.addSubscriber({onChange: (v) => notified = true});
+        
+        alphabetS.setAt(1, 'B');
+        
+        expect(alphabetZ.at(1)!.ref()).toBe('B');
+        expect(notified).toBeFalsy();
+    });
+    
+    test('insert() dep', () => {
+        const alphabetS = source(eq, ['a', 'b', 'c']);
+        const alphabetZ = alphabetS.view();
+        let change = [-1, ''] as [number, string | undefined];
+        alphabetZ.addISubscriber({
+            onInsert: (i, v) => change = [i, v.ref()],
+            onRemove: (_) => {},
+            onSubstitute: (_, _1) => {}
+        });
+        
+        alphabetS.insert(0, 'Z');
+        
+        expect(alphabetZ.size()).toBe(4);
+        expect(alphabetZ.at(0)!.ref()).toBe('Z');
+        expect(change[0]).toBe(0);
+        expect(change[1]).toBe('Z');
+    });
+    
+    test('remove() dep', () => {
+        const alphabetS = source(eq, ['a', 'b', 'c']);
+        const alphabetZ = alphabetS.view();
+        let changeIndex = -1;
+        alphabetZ.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (i) => changeIndex = i,
+            onSubstitute: (_, _1) => {}
+        });
+        // HACK:
+        alphabetZ.reduce((_, letterS) => {
+            letterS.addSubscriber({onChange: (_) => {}});
+            return undefined;
+        }, undefined);
+        
+        alphabetS.remove(1);
+        
+        expect(alphabetZ.size()).toBe(2);
+        expect(alphabetZ.at(1)!.ref()).toBe('c');
+        expect(changeIndex).toBe(1);
+    });
+});
+
