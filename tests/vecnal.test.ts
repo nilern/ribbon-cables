@@ -522,6 +522,7 @@ describe('testing `reduceS`', () => {
     });
 });
 
+// TODO: Migrate to tests of `dom.forVecnal`:
 describe('testing `view`', () => {
     test('Sized & Indexed<T> & Reducible<T>', () => {
         const alphabetS = source(eq, ['a', 'b', 'c']);

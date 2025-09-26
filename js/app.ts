@@ -7,7 +7,7 @@ import * as signal from "./signal.js";
 import type {Vecnal} from "./vecnal.js";
 import * as vecnal from "./vecnal.js";
 import * as dom from "./dom.js";
-import {el} from "./dom.js";
+import {el, forVecnal} from "./dom.js";
 
 type Routes = {
     [k: string]: () => void
@@ -263,9 +263,7 @@ function todoList(ctrl: Ctrl, todoS: Vecnal<Todo>): Node {
         el("label", {"for": "toggle-all"}, "Mark all as complete"),
         
         el("ul", {"class": "todo-list"},
-            todoS
-                .view()
-                .map(eq, (todoS) => item(ctrl, todoS.map(eq, (v) => /*HACK:*/ v!)))))
+            forVecnal(todoS, (todoS) => item(ctrl, todoS))));
 }
 
 function todoFilter(label: string, path: string, isSelected: Signal<boolean>): Node {

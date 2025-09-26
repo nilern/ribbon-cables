@@ -3,7 +3,7 @@ export type {
 };
 export {
     Signal,
-    NonNotifyingSignal, CheckingSubscribingSubscribeableSignal,
+    NonNotifyingSignal, SubscribeableSignal, CheckingSubscribingSubscribeableSignal,
     stable, source
 };
 

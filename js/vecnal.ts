@@ -909,6 +909,7 @@ class VecnalItemSignal<T> extends CheckingSubscribingSubscribeableSignal<T | und
     }
 }
 
+// TODO: Remove (replaced by `dom.forVecnal`):
 class ViewVecnal<T> extends SubscribingSubscribeableVecnal<Signal<T | undefined>>
     implements IndexedSubscriber<T>
 {
