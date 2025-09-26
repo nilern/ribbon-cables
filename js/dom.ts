@@ -443,7 +443,7 @@ function el(tagName: string, attrs: {[key: string]: AttributeValue}, ...children
     return node;
 }
 
-function text(dataS: Signal<string>): MountableNode {
+function text(dataS: Signal<string>): MountableText {
     const node = document.createTextNode(dataS.ref()) as MountableText;
     node.__vcnDetached = true;
     
