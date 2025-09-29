@@ -35,6 +35,7 @@ interface IndexedObservable<T> {
     notifySubstitute: (i: number, /* TODO: Remove this param if possible: */ v: T, u: T) => void;
 }
 
+// TODO: `extends Iterable<T>`:
 // TODO: Ribbon cable -inspired name:
 interface IVecnal<T> extends Indexed<T>, Sized, Reducible<T>, IndexedObservable<T> {}
 

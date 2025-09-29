@@ -1,7 +1,8 @@
 export type {
+    MountableNode, MountableElement, MountableText,
     AttributeString, BaseAttributeValue, StyleAttributeValue, AttributeValue,
     EventHandler,
-    ChildValue, Nest
+    ChildValue, Nest, Fragment
 };
 export {
     el, text,
