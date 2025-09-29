@@ -158,7 +158,7 @@ class MapFragment<T> extends Fragment implements IndexedSubscriber<T> {
     }
 }
 
-function forVecnal<T>(vS: Vecnal<T>, itemView: (vS: Signal<T>) => ChildValue): Nest {
+function forVecnal<T>(vS: Vecnal<T>, itemView: (vS: Signal<T>) => ChildValue): Fragment {
     return new MapFragment(vS, itemView);
 }
 
