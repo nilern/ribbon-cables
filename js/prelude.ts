@@ -35,6 +35,7 @@ interface Reducible<T> {
     reduce: <U>(f: (acc: U, v: T) => U, acc: U) => U;
 }
 
+// TODO: Make this unnecessary:
 class ImmArrayAdapter<T> implements Reducible<T>, Sized, Indexed<T> {
     constructor(
         private readonly vs: readonly T[]
@@ -47,6 +48,9 @@ class ImmArrayAdapter<T> implements Reducible<T>, Sized, Indexed<T> {
     at(i: number): T { return this.vs[i]; }
 }
 
+// TODO: Add default arguments to various places instead of just callously throwing
+//       this in whenever required:
+// TODO: Default to `Object.is` instead?
 function eq<T>(x: T, y: T): boolean { return x === y; }
 
 function str(x: any): string { return `${x}`; }

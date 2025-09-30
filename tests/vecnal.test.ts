@@ -1,7 +1,7 @@
-import {stable, source, lift, concat} from "../js/vecnal";
+import {stable, source, lift, concat, imux} from "../js/vecnal";
 
 import * as sig from "../js/signal";
-import {eq} from "../js/prelude";
+import {eq, ImmArrayAdapter} from "../js/prelude";
 
 describe('testing `stable`', () => {
     test('Sized & Indexed<T> & Reducible<T>', () => {
@@ -519,6 +519,111 @@ describe('testing `reduceS`', () => {
         
         expect(factS.ref()).toBe(24);
         expect(change).toBe(noChange);
+    });
+});
+
+describe('testing `imux`', () => {
+    test('Sized & Indexed<T> & Reducible<T>', () => {
+        const naturalS = sig.source(eq, new ImmArrayAdapter([1, 2, 3]));
+        const naturalZ = imux(eq, naturalS);
+        
+        expect(naturalZ.size()).toBe(3);
+        
+        expect(naturalZ.at(0)).toBe(1);
+        expect(naturalZ.at(1)).toBe(2);
+        expect(naturalZ.at(2)).toBe(3);
+        expect(naturalZ.at(3)).toBe(undefined);
+        
+        expect(naturalZ.reduce((acc, c) => acc + c, 0)).toBe(6);
+    });
+    
+    test('setAt() dep', () => {
+        const naturalS = sig.source(eq, new ImmArrayAdapter([1, 2, 3]));
+        const naturalZ = imux(eq, naturalS);
+        const noChange = [-1, NaN];
+        let change = noChange;
+        naturalZ.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (_) => {},
+            onSubstitute: (i, v) => change = [i, v]
+        });
+        
+        naturalS.reset(new ImmArrayAdapter([1, 4, 3]));
+        
+        expect(naturalZ.size()).toBe(3);
+        
+        expect(naturalZ.at(0)).toBe(1);
+        expect(naturalZ.at(1)).toBe(4);
+        expect(naturalZ.at(2)).toBe(3);
+        expect(naturalZ.at(3)).toBe(undefined);
+        
+        expect(naturalZ.reduce((acc, c) => acc + c, 0)).toBe(8);
+        
+        expect(change[0]).toBe(1);
+        expect(change[1]).toBe(4);
+        
+        change = noChange;
+        naturalS.reset(new ImmArrayAdapter([1, 4, 3]));
+        
+        expect(naturalZ.size()).toBe(3);
+        
+        expect(naturalZ.at(0)).toBe(1);
+        expect(naturalZ.at(1)).toBe(4);
+        expect(naturalZ.at(2)).toBe(3);
+        expect(naturalZ.at(3)).toBe(undefined);
+        
+        expect(naturalZ.reduce((acc, c) => acc + c, 0)).toBe(8);
+        
+        expect(change).toBe(noChange);
+    });
+    
+    test('insert() dep', () => {
+        const naturalS = sig.source(eq, new ImmArrayAdapter([1, 2, 3]));
+        const naturalZ = imux(eq, naturalS);
+        let change = [-1, NaN];
+        naturalZ.addISubscriber({
+            onInsert: (i, v) => change = [i, v],
+            onRemove: (_) => {},
+            onSubstitute: (_, _1) => {}
+        });
+        
+        naturalS.reset(new ImmArrayAdapter([1, 2, 4, 3]));
+        
+        expect(naturalZ.size()).toBe(4);
+        
+        expect(naturalZ.at(0)).toBe(1);
+        expect(naturalZ.at(1)).toBe(2);
+        expect(naturalZ.at(2)).toBe(4);
+        expect(naturalZ.at(3)).toBe(3);
+        expect(naturalZ.at(4)).toBe(undefined);
+        
+        expect(naturalZ.reduce((acc, c) => acc + c, 0)).toBe(10);
+        
+        expect(change[0]).toBe(2);
+        expect(change[1]).toBe(4);
+    });
+    
+    test('remove() dep', () => {
+        const naturalS = sig.source(eq, new ImmArrayAdapter([1, 2, 3]));
+        const naturalZ = imux(eq, naturalS);
+        let changeIndex = -1;
+        naturalZ.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (i) => changeIndex = i,
+            onSubstitute: (_, _1) => {}
+        });
+        
+        naturalS.reset(new ImmArrayAdapter([1, 3]));
+        
+        expect(naturalZ.size()).toBe(2);
+        
+        expect(naturalZ.at(0)).toBe(1);
+        expect(naturalZ.at(1)).toBe(3);
+        expect(naturalZ.at(4)).toBe(undefined);
+        
+        expect(naturalZ.reduce((acc, c) => acc + c, 0)).toBe(4);
+        
+        expect(changeIndex).toBe(1);
     });
 });
 
