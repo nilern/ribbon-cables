@@ -2,7 +2,8 @@ export type {
     MountableNode, MountableElement, MountableText,
     AttributeString, BaseAttributeValue, StyleAttributeValue, AttributeValue,
     EventHandler,
-    ChildValue, Nest, Fragment
+    ChildValue, Nest, Fragment,
+    TextValue
 };
 export {
     el, text,
@@ -444,14 +445,20 @@ function el(tagName: string, attrs: {[key: string]: AttributeValue}, ...children
     return node;
 }
 
-function text(dataS: Signal<string>): MountableText {
-    const node = document.createTextNode(dataS.ref()) as MountableText;
+type TextValue = string | Signal<string>;
+
+function text(data: TextValue): MountableText {
+    const text = data instanceof Signal ? data.ref() : data;
+
+    const node = document.createTextNode(text) as MountableText;
     node.__vcnDetached = true;
     
-    addWatchee(node, dataS, {
-        onChange: (newStr) => node.replaceData(0, node.length, newStr)
-    });
-    
+    if (data instanceof Signal) {
+        addWatchee(node, data, {
+            onChange: (newStr) => node.replaceData(0, node.length, newStr)
+        });
+    }
+        
     return node;
 }
 
