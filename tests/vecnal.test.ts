@@ -498,7 +498,7 @@ describe('testing `reduceS`', () => {
         expect(change).toBe(noChange);
     });
     
-    test('insert() dep', () => {
+    test('remove() dep', () => {
         const kS = sig.stable(1);
         const natS = source(eq, [1, 2, 3, 4, 5]);
         const factS =
