@@ -4,6 +4,7 @@
 
 import * as dom from "../js/dom";
 
+import * as sig from "../js/signal";
 import * as vec from "../js/vecnal";
 import {eq} from "../js/prelude";
 
@@ -91,6 +92,38 @@ describe('testing `forVecnal`', () => {
         alphabetS.remove(1);
         
         expect(changeIndex).toBe(1);
+    });
+});
+
+describe('testing `text', () => {
+    test('from string', () => {
+        const text = dom.text('foo');
+        
+        expect(text instanceof Text).toBeTruthy();
+        expect(text.__vcnDetached).toBe(true);
+        expect(text.data).toBe('foo');
+    });
+    
+    test('from signal', () => {
+        const dataS = sig.stable('foo');
+        const text = dom.text(dataS);
+        
+        expect(text instanceof Text).toBeTruthy();
+        expect(text.__vcnDetached).toBe(true);
+        expect(text.data).toBe('foo');
+    });
+    
+    test('`reset()` dep', () => {
+        const dataS = sig.source(eq, 'foo');
+        const text = dom.text(dataS);
+        dom.appendChild(document.body, text);
+        
+        expect(text.__vcnDetached).toBe(false);
+        expect(text.data).toBe('foo');
+        
+        dataS.reset('bar');
+        
+        expect(text.data).toBe('bar');
     });
 });
 

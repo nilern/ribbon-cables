@@ -8,7 +8,7 @@ export type {
 export {
     el, text,
     forVecnal, // TODO: `ifSignal`
-    insertBefore, removeChild, replaceChild
+    appendChild, insertBefore, removeChild, replaceChild
 };
 
 import type {Reset} from "./prelude.js";
@@ -350,6 +350,13 @@ function unmount(node: MountableNode) {
         for (const child of node.children) {
             unmount(child);
         }
+    }
+}
+
+function appendChild(parent: Element, child: Node) {
+    parent.appendChild(child);
+    if (isMounted(parent)) {
+        mount(child);
     }
 }
 
