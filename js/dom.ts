@@ -17,17 +17,19 @@ import {Signal, SubscribeableSignal} from "./signal.js";
 import type {IndexedObservable, IndexedSubscriber} from "./vecnal.js";
 import {Vecnal} from "./vecnal.js";
 
+type TextValue = string | Signal<string>;
+
 type EventHandler = (event: Event) => void;
 
-type ChildValue = MountableNode | string;
+type ChildValue = MountableNode | TextValue;
 
-type Nest = ChildValue | Signal<string> | Fragment;
+type Nest = ChildValue | ChildValue[] | Fragment;
 
 function childValueToNode(child: ChildValue): MountableNode {
     if (child instanceof Node) {
         return child;
-    } else if (typeof child === "string") {
-        return document.createTextNode(child);
+    } else if (typeof child === "string" || child instanceof Signal) {
+        return text(child);
     } else {
         const exhaust: never = child;
         return exhaust;
@@ -164,12 +166,15 @@ function forVecnal<T>(vS: Vecnal<T>, itemView: (vS: Signal<T>) => ChildValue): F
 }
 
 function hatchChildren(nest: Nest): Iterable<MountableNode> {
-    if (nest instanceof Fragment) {
-        return nest.hatchChildren();
-    } if (nest instanceof Signal) {
-        return [text(nest)];
-    } else {
+    if (nest instanceof Node || typeof nest === "string" || nest instanceof Signal) {
         return [childValueToNode(nest)];
+    } else if (Array.isArray(nest)) {
+        return nest.map(childValueToNode);
+    } else if (nest instanceof Fragment) {
+        return nest.hatchChildren();
+    } else {
+        const _exhaust: never = nest;
+        throw new Error("Unreachable");
     }
 }
 
@@ -451,8 +456,6 @@ function el(tagName: string, attrs: {[key: string]: AttributeValue}, ...children
     
     return node;
 }
-
-type TextValue = string | Signal<string>;
 
 function text(data: TextValue): MountableText {
     const text = data instanceof Signal ? data.ref() : data;
