@@ -23,7 +23,7 @@ type EventHandler = (event: Event) => void;
 
 type ChildValue = MountableNode | TextValue;
 
-type Nest = ChildValue | ChildValue[] | Fragment;
+type Nest = ChildValue | Iterable<ChildValue> | Fragment;
 
 function childValueToNode(child: ChildValue): MountableNode {
     if (child instanceof Node) {
@@ -97,6 +97,7 @@ class MapFragment<T> extends Fragment implements IndexedSubscriber<T> {
         super();
     }
     
+    // TODO: Just `MapFragment<T> implements (lazy) Iterator<T>` instead?:
     hatchChildren(): Iterable<MountableNode> {
         return this.input.reduce<MountableNode[]>((children, v) => {
             const vS = new ChildSignal(v);
@@ -168,8 +169,14 @@ function forVecnal<T>(vS: Vecnal<T>, itemView: (vS: Signal<T>) => ChildValue): F
 function hatchChildren(nest: Nest): Iterable<MountableNode> {
     if (nest instanceof Node || typeof nest === "string" || nest instanceof Signal) {
         return [childValueToNode(nest)];
-    } else if (Array.isArray(nest)) {
-        return nest.map(childValueToNode);
+    } else if (Symbol.iterator in nest) {
+        const children = [];
+    
+        for (const child of nest) {
+            children.push(childValueToNode(child));
+        }
+    
+        return children;
     } else if (nest instanceof Fragment) {
         return nest.hatchChildren();
     } else {
