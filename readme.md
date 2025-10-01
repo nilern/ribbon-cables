@@ -4,6 +4,21 @@
 
 ## Goals
 
+* Dev UX
+    - Convenient API
+    - Thorough documentation
+    - TodoMVC example
+* Correctness
+    - Strictly typed
+    - Thoroughly tested
+        * Basic tests
+        * Property-based testing
+* Performance
+    - Microbenchmarks (for e.g. `diff`)
+    - Macrobenchmarks (e.g. https://github.com/krausest/js-framework-benchmark)
+
+---
+
 * A signal node that is not (transitively) in use by a sink should not be
   referenced by its dependencies. If it were (as it is in some other frameworks)
   the dependencies would keep sending updates to it and its memory would leak
