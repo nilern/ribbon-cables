@@ -7,7 +7,7 @@ export type {
 };
 export {
     el, text,
-    forVecnal, // TODO: `ifSignal`
+    forVecnal, // TODO: `ifSignal` (unless `Signal<MountableNode>` <: `ChildValue`)
     appendChild, insertBefore, removeChild, replaceChild
 };
 
@@ -21,7 +21,7 @@ type TextValue = string | Signal<string>;
 
 type EventHandler = (event: Event) => void;
 
-type ChildValue = MountableNode | TextValue;
+type ChildValue = MountableNode | TextValue; // TODO: `Signal<MountableNode>`
 
 type Nest = ChildValue | Iterable<ChildValue> | Fragment;
 
@@ -455,6 +455,8 @@ function el(tagName: string, attrs: {[key: string]: AttributeValue}, ...children
     const node = document.createElement(tagName) as MountableElement;
     node.__vcnDetached = true;
     
+    // This could also be done lazily if reasons (beyond just consistency with 
+    // `__vcnNests`) arise:
     for (const attrName in attrs) {
         setAttribute(node, attrName, attrs[attrName]);
     }

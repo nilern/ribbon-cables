@@ -2,11 +2,11 @@
  * @jest-environment jsdom
  */ 
 
-import * as dom from "../js/dom";
+import * as dom from '../js/dom';
 
-import * as sig from "../js/signal";
-import * as vec from "../js/vecnal";
-import {eq} from "../js/prelude";
+import * as sig from '../js/signal';
+import * as vec from '../js/vecnal';
+import {eq} from '../js/prelude';
 
 describe('testing `forVecnal`', () => {
     test('hatchChildren()', () => {
@@ -95,6 +95,84 @@ describe('testing `forVecnal`', () => {
     });
 });
 
+describe('testing `el', () => {
+    test('creates `__vcnDetached` `Element`', () => {
+        const node = dom.el('div', {});
+        
+        expect(node instanceof Element).toBeTruthy();
+        expect(node.__vcnDetached).toBe(true);
+        expect(node.tagName).toBe('DIV');
+    });
+    
+    test('initializes `AttributeString`', () => {
+        const node = dom.el('link', {
+            'rel': 'stylesheet',
+            'href': undefined
+        });
+        
+        expect(node.getAttribute('rel')).toBe('stylesheet');
+        expect(node.getAttribute('href')).toBe(null);
+        
+        const valueS = sig.stable('foo');
+        const input = dom.el('input', {'value': valueS});
+        
+        expect(input.getAttribute('value')).toBe('foo');
+    });
+    
+    test('initializes style attribute', () => {
+        const colorS = sig.stable('black');
+        const node = dom.el('span', {
+            'style': {
+                'backgroundColor': 'white',
+                'color': colorS
+            }
+        }) as unknown as HTMLElement; // HACK
+        
+        const style = node.style as
+            unknown as {[key: string]: dom.BaseAttributeValue}; // HACK
+        expect(style['background-color']).toBe('white');
+        expect(style['color']).toBe('black');
+    });
+    
+    test('initializes event listener', () => {
+        // This is complicated by the nonexistence of `getEventListener(s)`.
+    
+        let event = undefined as Event | undefined;
+        const lick = (ev: Event) => event = ev;
+        const node = dom.el('button', {'onclick': lick})
+        
+        const clickEvent = new Event('click');
+        node.dispatchEvent(clickEvent);
+        
+        expect(event).toBe(clickEvent);
+    });
+    
+    test('reactive attribute', () => {
+        const valueS = sig.source(eq, 'foo');
+        const node = dom.el('input', {'value': valueS});
+        dom.appendChild(document.body, node);
+    
+        valueS.reset('bar');
+        
+        expect(node.getAttribute('value')).toBe('bar');
+    });
+    
+    test('reactive style attribute', () => {
+        const colorS = sig.source(eq, 'black');
+        const node = dom.el('span', {'style': {'color': colorS}}) as
+            unknown as HTMLElement; // HACK
+        dom.appendChild(document.body, node);
+        
+        colorS.reset('red');
+        
+        const style = node.style as
+            unknown as {[key: string]: dom.BaseAttributeValue}; // HACK
+        expect(style['color']).toBe('red');
+        
+        dom.removeChild(document.body, node);
+    });
+});
+
 describe('testing `text', () => {
     test('from string', () => {
         const text = dom.text('foo');
@@ -124,6 +202,8 @@ describe('testing `text', () => {
         dataS.reset('bar');
         
         expect(text.data).toBe('bar');
+        
+        dom.removeChild(document.body, text);
     });
 });
 
