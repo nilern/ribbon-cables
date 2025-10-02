@@ -225,6 +225,44 @@ describe('testing `el', () => {
         
         dom.removeChild(document.body, node);
     });
+    
+    test('children from `Vecnal`', () => {
+        const strS = vec.stable(['foo', 'bar', 'baz']);
+        const node = dom.el('div', {}, dom.forVecnal(strS, dom.text));
+        dom.appendChild(document.body, node);
+        
+        expect(node.childNodes.length).toBe(3);
+        for (let i = 0; i < node.childNodes.length; ++i) {
+            const child = node.childNodes[i];
+            expect(child instanceof Text).toBeTruthy();
+            expect((child as Text).data).toBe(strS.at(i)!);
+        }
+        
+        dom.removeChild(document.body, node);
+    });
+    
+    test('reactive children from `Vecnal`', () => {
+        const strS = vec.source(eq, ['foo', 'bar', 'baz']);
+        const node = dom.el('div', {}, dom.forVecnal(strS, dom.text));
+        dom.appendChild(document.body, node);
+        
+        strS.setAt(1, 'Bar');
+        
+        expect(node.childNodes.length).toBe(3);
+        expect((node.childNodes[1] as Text).data).toBe('Bar');
+        
+        strS.insert(3, 'quux');
+        
+        expect(node.childNodes.length).toBe(4);
+        expect((node.childNodes[3] as Text).data).toBe('quux');
+        
+        strS.remove(1);
+        
+        expect(node.childNodes.length).toBe(3);
+        expect((node.childNodes[1] as Text).data).toBe('baz');
+        
+        dom.removeChild(document.body, node);
+    });
 });
 
 describe('testing `text', () => {
