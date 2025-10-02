@@ -171,6 +171,60 @@ describe('testing `el', () => {
         
         dom.removeChild(document.body, node);
     });
+    
+    test('child element', () => {
+        const span = dom.el('span', {});
+        const node = dom.el('div', {}, span);
+        dom.appendChild(document.body, node);
+        
+        expect(node.childNodes.length).toBe(1);
+        expect(node.childNodes[0]).toBe(span);
+        
+        dom.removeChild(document.body, node);
+    });
+    
+    test('child text', () => {
+        const text = 'foo';
+        const node = dom.el('span', {}, text);
+        dom.appendChild(document.body, node);
+        
+        expect(node.childNodes.length).toBe(1);
+        const child = node.childNodes[0];
+        expect(child instanceof Text).toBeTruthy();
+        expect((child as unknown as Text).data).toBe('foo');
+        
+        dom.removeChild(document.body, node);
+    });
+    
+    test('child text from signal', () => {
+        const text = sig.stable('foo');
+        const node = dom.el('span', {}, text);
+        dom.appendChild(document.body, node);
+        
+        expect(node.childNodes.length).toBe(1);
+        const child = node.childNodes[0];
+        expect(child instanceof Text).toBeTruthy();
+        expect((child as unknown as Text).data).toBe('foo');
+        
+        dom.removeChild(document.body, node);
+    });
+    
+    test('children from iterable', () => {
+        const children = [
+            dom.text('foo'),
+            dom.text('bar'),
+            dom.text('baz'),
+        ];
+        const node = dom.el('div', {}, children as Iterable<dom.MountableNode>);
+        dom.appendChild(document.body, node);
+        
+        expect(node.childNodes.length).toBe(3);
+        for (let i = 0; i < node.childNodes.length; ++i) {
+            expect(node.childNodes[i]).toBe(children[i]);
+        }
+        
+        dom.removeChild(document.body, node);
+    });
 });
 
 describe('testing `text', () => {
