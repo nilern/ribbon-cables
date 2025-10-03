@@ -3,7 +3,7 @@ export type {
     Sized, Indexed, IndexedMut, Spliceable,
     Reducible
 };
-export {ImmArrayAdapter, eq, str};
+export {ImmArrayAdapter, id, eq, str};
 
 interface Deref<T> {
     ref: () => T;
@@ -47,6 +47,8 @@ class ImmArrayAdapter<T> implements Reducible<T>, Sized, Indexed<T> {
     
     at(i: number): T { return this.vs[i]; }
 }
+
+function id<T>(v: T): T { return v; }
 
 // TODO: Add default arguments to various places instead of just callously throwing
 //       this in whenever required:

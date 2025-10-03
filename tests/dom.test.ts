@@ -6,7 +6,7 @@ import * as dom from '../js/dom';
 
 import * as sig from '../js/signal';
 import * as vec from '../js/vecnal';
-import {eq} from '../js/prelude';
+import {id, eq} from '../js/prelude';
 
 describe('testing `forVecnal`', () => {
     test('hatchChildren()', () => {
@@ -260,6 +260,38 @@ describe('testing `el', () => {
         
         expect(node.childNodes.length).toBe(3);
         expect((node.childNodes[1] as Text).data).toBe('baz');
+        
+        dom.removeChild(document.body, node);
+    });
+    
+    test('reactive inner children from `Vecnal`', () => {
+        const abS = ['a', 'b', 'c'];
+        const efS = vec.source(eq, ['e', 'f']);
+        const ghS = ['g', 'h'];
+        const node = dom.el('div', {},
+            abS,
+            dom.forVecnal(efS, id),
+            ghS
+        );
+        dom.appendChild(document.body, node);
+        
+        efS.insert(0, 'D');
+        
+        expect(node.childNodes.length).toBe(8);
+        expect((node.childNodes[3] as Text).data).toBe('D');
+        expect((node.childNodes[6] as Text).data).toBe('g');
+        
+        efS.setAt(0, 'd');
+        
+        expect(node.childNodes.length).toBe(8);
+        expect((node.childNodes[3] as Text).data).toBe('d');
+        expect((node.childNodes[6] as Text).data).toBe('g');
+        
+        efS.remove(0);
+        
+        expect(node.childNodes.length).toBe(7);
+        expect((node.childNodes[3] as Text).data).toBe('e');
+        expect((node.childNodes[5] as Text).data).toBe('g');
         
         dom.removeChild(document.body, node);
     });
