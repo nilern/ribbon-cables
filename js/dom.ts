@@ -196,17 +196,6 @@ function addWatchee<T>(node: MountableNode, valS: Signal<T>, subscriber: Subscri
     }
 }
 
-function removeWatchee<T>(node: MountableNode, valS: Signal<T>, subscriber: Subscriber<T>) {
-    if (!node.__vcnWatchees) { node.__vcnWatchees = new Map(); }
-    
-    const subscribers = node.__vcnWatchees.get(valS);
-    if (subscribers) {
-        subscribers.delete(subscriber);
-    } else {
-        console.error("signal has no subscribers to delete from");
-    }
-}
-
 function addMultiWatchee<T>(node: MountableElement, collS: IndexedObservable<T>,
     subscriber: IndexedSubscriber<T>
 ) {
@@ -217,19 +206,6 @@ function addMultiWatchee<T>(node: MountableElement, collS: IndexedObservable<T>,
         subscribers.add(subscriber);
     } else {
         node.__vcnMultiWatchees.set(collS, new Set([subscriber]));
-    }
-}
-
-function removeMultiWatchee<T>(node: MountableElement, collS: Vecnal<T>,
-    subscriber: IndexedSubscriber<T>
-) {
-    if (!node.__vcnMultiWatchees) { node.__vcnMultiWatchees = new Map(); }
-    
-    const subscribers = node.__vcnMultiWatchees.get(collS);
-    if (subscribers) {
-        subscribers.delete(subscriber);
-    } else {
-        console.error("vecnal has no subscribers to delete from");
     }
 }
 
