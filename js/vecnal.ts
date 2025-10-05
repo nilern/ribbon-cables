@@ -867,17 +867,16 @@ class ImuxVecnal<T> extends SubscribingSubscribeableVecnal<T>
     
     private patch(newVs: Sized & Indexed<T>, edits: diff.EditScript) {
         for (const edit of edits) {
+            const i = edit.index;
+                
             if (edit instanceof diff.Insert) {
-                const i = edit.index;
                 const v = newVs.at(i)!;
                 this.vs.splice(i, 0, v); // OPTIMIZE
                 this.notifyInsert(i, v);
             } else if (edit instanceof diff.Delete) {
-                const i = edit.index;
                 this.vs.splice(i, 1); // OPTIMIZE
                 this.notifyRemove(i);
             } else if (edit instanceof diff.Substitute) {
-                const i = edit.index;
                 const u = this.vs[i];
                 const v = newVs.at(i)!;
                 this.vs[i] = v;

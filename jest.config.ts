@@ -12,8 +12,9 @@ const config: JestConfigWithTsJest = {
   },
   extensionsToTreatAsEsm: [".ts"],
   moduleNameMapper: {
-    "^(\\.{1,2}/.*)\\.js$": "$1",
+    "^(\\.{1,2}/.*)\\.js$": "$1"
   },
+  moduleDirectories: ["node_modules"]
 };
 
 export default config;

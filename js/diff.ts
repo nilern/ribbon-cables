@@ -1,8 +1,8 @@
 export type {
-    EditScript
+    EditScript, Edit
 };
 export {
-    Edit, Delete, Insert, Substitute,
+    Delete, Insert, Substitute,
     diff
 };
 
