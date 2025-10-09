@@ -15,6 +15,9 @@ import type {Subscriber} from "./signal.js";
 import * as signal from "./signal.js";
 import {Signal, NonNotifyingSignal, CheckingSubscribingSubscribeableSignal}
     from "./signal.js";
+    
+// OPTIMIZE: Why even bother with init in constructors when e.g. `this.vs` is ignored
+// anyway until subscribers appear?
 
  // TODO: Already reject non-changes here:
 interface IndexedSubscriber<T> {
@@ -69,6 +72,10 @@ abstract class Vecnal<T> implements IVecnal<T> {
     reduceS<U>(equals: (x: U, y: U) => boolean, f: (acc: U, v: T) => U, accS: Signal<U>
     ): Signal<U> {
         return new ReducedSignal(equals, f, accS, this);
+    }
+    
+    sort(compare: (x: T, y: T) => number): Vecnal<T> {
+        return new SortedVecnal(this, compare);
     }
     
     mux<Coll>(builders: () => ListBuilder<T, Coll>): Signal<Coll> {
@@ -358,12 +365,12 @@ class MappedVecnal<U, T> extends CheckingSubscribingSubscribeableVecnal<U>
     }
 }
 
+// C style non-index should make `indexMapping`s arrays of 32-bit ints at runtime:
+const NO_INDEX = -1;
+
 class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
     implements IndexedSubscriber<T>
 {
-    // C style non-index should make `indexMapping` an array of 32-bit ints at runtime:
-    private static readonly NO_INDEX = -1;
-
     private readonly vs: T[]; // OPTIMIZE: RRB vector
     private readonly indexMapping: number[];
 
@@ -382,7 +389,7 @@ class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
                 this.vs.push(v);
                 this.indexMapping[i] = this.vs.length - 1;
             } else {
-                this.indexMapping[i] = FilteredVecnal.NO_INDEX;
+                this.indexMapping[i] = NO_INDEX;
             }
         }
     }
@@ -399,7 +406,7 @@ class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
                     this.vs.push(v);
                     this.indexMapping[i] = this.vs.length - 1;
                 } else {
-                    this.indexMapping[i] = FilteredVecnal.NO_INDEX;
+                    this.indexMapping[i] = NO_INDEX;
                 }
             }
             // OPTIMIZE: This combined with dep `size()` in ctor makes signal graph construction
@@ -422,7 +429,7 @@ class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
                     this.vs.push(v);
                     this.indexMapping[i] = this.vs.length - 1;
                 } else {
-                    this.indexMapping[i] = FilteredVecnal.NO_INDEX;
+                    this.indexMapping[i] = NO_INDEX;
                 }
             }
             // OPTIMIZE: This combined with dep `size()` in ctor makes signal graph construction
@@ -448,7 +455,7 @@ class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
                         break; // They only asked for `this.vs[i]`, can skip the following elements
                     }
                 } else {
-                    this.indexMapping[j] = FilteredVecnal.NO_INDEX;
+                    this.indexMapping[j] = NO_INDEX;
                 }
             }
             // OPTIMIZE: This combined with dep `at()`:s in ctor makes signal graph construction
@@ -500,7 +507,7 @@ class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
     }
     
     private spliceInsertionIndex(inputIndex: number, insertionIndex: number) {
-        this.indexMapping.push(FilteredVecnal.NO_INDEX);
+        this.indexMapping.push(NO_INDEX);
             
         for (let i = this.indexMapping.length - 1; i > inputIndex; --i) {
             const outputIndex = this.indexMapping[i - 1];
@@ -513,7 +520,7 @@ class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
     }
     
     private removeRemovalIndex(inputIndex: number) {
-        this.indexMapping[inputIndex] = FilteredVecnal.NO_INDEX;
+        this.indexMapping[inputIndex] = NO_INDEX;
         
         const len = this.indexMapping.length;
         for (let i = inputIndex + 1; i < len; ++i) {
@@ -555,7 +562,7 @@ class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
             this.notifyInsert(insertionIndex, v);
         } else {
             // Output does not change but still need to update index mapping:
-            this.indexMapping.splice(i, 0, FilteredVecnal.NO_INDEX);
+            this.indexMapping.splice(i, 0, NO_INDEX);
         }
     }
     
@@ -834,8 +841,6 @@ class ReducedSignal<U, T> extends CheckingSubscribingSubscribeableSignal<U>
     }
 }
 
-// TODO: SortedVecnal (backed by an array and binary search)
-
 class ThunkSignal<T> extends NonNotifyingSignal<T> {
     constructor(
         private readonly f: () => T
@@ -844,6 +849,263 @@ class ThunkSignal<T> extends NonNotifyingSignal<T> {
     }
     
     ref(): T { return this.f(); }
+}
+
+class SortedVecnal<T> extends SubscribingSubscribeableVecnal<T>
+    implements IndexedSubscriber<T>
+{
+    private readonly vs = [] as T[];
+    private readonly indexMapping = [] as number[];
+    private readonly revIndexMapping = [] as number[];
+
+    constructor(
+        private readonly input: Vecnal<T>,
+        private readonly compare: (x: T, y: T) => number
+    ) {
+        super();
+        
+        this.reInit();
+    }
+    
+    // OPTIMIZE: Replace with Powersort:
+    // Cannot use `Array.prototype.sort` since we need to maintain `this.indexMapping`:
+    private mergeSort() {
+        const cmp = this.compare;
+    
+        function merge(
+            dest: T[], destRevIndexMapping: number[],
+            src: T[], srcRevIndexMapping: number[],
+            low: number, mid: number, high: number
+        ) {
+            for (let li = low, ri = mid, di = low; di < high; ++di) {
+                const l = src[li], r = src[ri];
+                if (li < mid && (ri >= high || cmp(l, r) < 0)) {
+                    dest[di] = l;
+                    destRevIndexMapping[di] = srcRevIndexMapping[li];
+                    ++li;
+                } else {
+                    dest[di] = r;
+                    destRevIndexMapping[di] = srcRevIndexMapping[ri];
+                    ++ri;
+                }
+            }
+        }
+    
+        function mergeSortRange(
+            dest: T[], destRevIndexMapping: number[],
+            src: T[], srcRevIndexMapping: number[],
+            low: number, high: number
+        ) {
+            const length = high - low;
+            if (length <= 1) { return; }
+            
+            const mid = low + Math.floor(length / 2);
+            mergeSortRange(
+                src, srcRevIndexMapping,
+                dest, destRevIndexMapping,
+                low, mid
+            );
+            mergeSortRange(
+                src, srcRevIndexMapping,
+                dest, destRevIndexMapping,
+                mid, high
+            );
+            merge(
+                dest, destRevIndexMapping,
+                src, srcRevIndexMapping,
+                low, mid, high
+            );
+        }
+        
+        mergeSortRange(
+            this.vs, this.revIndexMapping,
+            [...this.vs], [...this.revIndexMapping],
+            0, this.vs.length
+        );
+        
+        { // Update `this.indexMapping` from `this.revIndexMapping`:
+            const len = this.revIndexMapping.length;
+            for (let index = 0; index < len; ++index) {
+                const inputIndex = this.revIndexMapping[index];
+                this.indexMapping[inputIndex] = index;
+            }
+        }
+    }
+    
+    // FIXME: Ensure stability:
+    private insertionIndex(v: T): number {
+        // Typical cache line size is 64 bytes.
+        // Typical object reference size is 8 bytes (even on 32-bit machines due to
+        // NaN-tagging).
+        const linearTreshold = 8; // 64 / 8
+        
+        let low = 0;
+        
+        // Binary search:
+        for (let high = this.vs.length, length = high - low;
+             length > linearTreshold;
+             length = high - low
+        ) {
+            const mid = low + Math.floor(length / 2);
+            
+            const ordering = this.compare(this.vs[mid], v);
+            
+            if (ordering < 0) {
+                low = mid + 1;
+            } else if (ordering > 0) {
+                high = mid;
+            } else { // `ordering === 0`
+                low = mid;
+                break;
+            }
+        }
+        
+        // Linear search:
+        while (this.compare(this.vs[low], v) < 0) { ++low; }
+        
+        return low;
+    }
+    
+    private insertIndexMapping(inputIndex: number, index: number) {
+        // OPTIMIZE: Instead of splicing at the end push `NO_INDEX` and move elements
+        // after `inputIndex`/`index` forwards while updating them.
+    
+        {
+            const len = this.indexMapping.length;
+            for (let i = 0; i < len; ++i) {
+                const j = this.indexMapping[i];
+                if (j >= index) {
+                    this.indexMapping[i] = j + 1;
+                }
+            }
+        }
+        this.indexMapping.splice(inputIndex, 0, index);
+        
+        {
+            const len = this.revIndexMapping.length;
+            for (let i = 0; i < len; ++i) {
+                const j = this.revIndexMapping[i];
+                if (j >= inputIndex) {
+                    this.revIndexMapping[i] = j + 1;
+                }
+            }
+        }
+        this.revIndexMapping.splice(index, 0, inputIndex);
+    }
+    
+    private removeIndexMapping(inputIndex: number, index: number) {
+        // OPTIMIZE: Instead of splicing at the end move elements after
+        // `inputIndex`/`index` backwards while updating them and pop at the end.
+        
+        {
+            const len = this.indexMapping.length;
+            for (let i = 0; i < len; ++i) {
+                const j = this.indexMapping[i];
+                if (j > index) {
+                    this.indexMapping[i] = j - 1;
+                }
+            }
+        }
+        this.indexMapping.splice(inputIndex, 1);
+    
+        {
+            const len = this.revIndexMapping.length;
+            for (let i = 0; i < len; ++i) {
+                const j = this.revIndexMapping[i];
+                if (j > index) {
+                    this.revIndexMapping[i] = j - 1;
+                }
+            }
+        }
+        this.revIndexMapping.splice(index, 1);
+    }
+    
+    private reInit() {
+        this.vs.length = 0;
+        this.indexMapping.length = 0;
+        this.revIndexMapping.length = 0;
+        this.input.reduce((i, v) => {
+            this.vs.push(v);
+            this.indexMapping.push(i);
+            this.revIndexMapping.push(i);
+            return i + 1;
+        }, 0);
+        
+        this.mergeSort();
+    }
+    
+    size(): number {
+        if (this.subscribers.size === 0) {
+            return this.input.size();
+        }
+        
+        return this.vs.length;
+    }
+    
+    atOr(index: number, defaultValue: T): T {
+        if (this.subscribers.size === 0) {
+            this.reInit();
+        }
+        
+        if (index >= this.vs.length) { return defaultValue; }
+        
+        return this.vs[index];
+    }
+    
+    reduce<U>(f: (acc: U, v: T) => U, acc: U): U {
+        if (this.subscribers.size === 0) {
+            this.reInit();
+        }
+        
+        return this.vs.reduce(f, acc);
+    }
+    
+    subscribeToDeps() { this.input.addISubscriber(this); }
+    
+    unsubscribeFromDeps() { this.input.removeISubscriber(this); }
+    
+    onInsert(inputIndex: number, v: T) {
+        const index = this.insertionIndex(v);
+        this.vs.splice(index, 0, v);
+        this.insertIndexMapping(inputIndex, index);
+        
+        this.notifyInsert(index, v);
+    }
+    
+    onRemove(inputIndex: number) {
+        const index = this.indexMapping[inputIndex];
+        this.vs.splice(index, 1);
+        this.removeIndexMapping(inputIndex, index);
+        
+        this.notifyRemove(index);
+    }
+    
+    onSubstitute(inputIndex: number, v: T) {
+        const removalIndex = this.indexMapping[inputIndex];
+        let insertionIndex = this.insertionIndex(v);
+        if (insertionIndex > removalIndex) {
+            --insertionIndex;
+        }
+        
+        if (insertionIndex === removalIndex) {
+            const oldV = this.vs[insertionIndex];
+            this.vs[insertionIndex] = v;
+            
+            this.notifySubstitute(insertionIndex, oldV, v);
+            return;
+        }
+        
+        // OPTIMIZE: Combine linear-time `vs` & `indexMapping` updates (if
+        // `notifyMove` becomes available to accompany that):
+        
+        this.vs.splice(removalIndex, 1);
+        this.removeIndexMapping(inputIndex, removalIndex);
+        this.notifyRemove(removalIndex);
+        
+        this.vs.splice(insertionIndex, 0, v);
+        this.insertIndexMapping(inputIndex, insertionIndex);
+        this.notifyInsert(insertionIndex, v);
+    }
 }
 
 type ImuxableVal<T> = Reducible<T> & Sized & Indexed<T>;

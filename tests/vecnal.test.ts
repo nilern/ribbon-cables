@@ -419,6 +419,96 @@ describe('testing `concat`', () => {
     });
 });
 
+describe('testing `sort`', () => {
+    test('Sized & Indexed<T> & Reducible<T>', () => {
+        const vS = stable([7, 2, 9, 4, 1, 18, 14, 19, 12]);
+        const sortedS = vS.sort((x, y) => x - y);
+        
+        expect(sortedS.size()).toBe(9);
+        
+        expect(sortedS.at(0)).toBe(1);
+        expect(sortedS.at(1)).toBe(2);
+        expect(sortedS.at(2)).toBe(4);
+        expect(sortedS.at(3)).toBe(7);
+        expect(sortedS.at(4)).toBe(9);
+        expect(sortedS.at(9)).toBe(undefined);
+        
+        expect(sortedS.reduce((acc, n) => acc + n, 0)).toBe(86);
+    });
+    
+    test('setAt() dep', () => {
+        const vS = source(eq, [7, 2, 9, 4, 1, 18, 14, 19, 12]);
+        const sortedS = vS.sort((x, y) => x - y);
+        const changes = [];
+        sortedS.addISubscriber({
+            onInsert: (i, v) => changes.push(["insert", i, v]),
+            onRemove: (i) => changes.push(["remove", i, -1]),
+            onSubstitute: (i, v) => changes.push(["substitute", i, v])
+        });
+        
+        vS.setAt(1, 5);
+        
+        expect(sortedS.size()).toBe(9);
+        expect(sortedS.at(1)).toBe(4);
+        expect(sortedS.at(2)).toBe(5);
+        
+        expect(changes.length).toBe(2);
+        expect(changes[0][0]).toBe("remove");
+        expect(changes[0][1]).toBe(1);
+        expect(changes[1][0]).toBe("insert");
+        expect(changes[1][1]).toBe(2);
+        expect(changes[1][2]).toBe(5);
+        
+        changes.length = 0;
+        vS.setAt(3, 3);
+        
+        expect(sortedS.size()).toBe(9);
+        expect(sortedS.at(1)).toBe(3);
+        
+        expect(changes.length).toBe(1);
+        expect(changes[0][0]).toBe("substitute");
+        expect(changes[0][1]).toBe(1);
+        expect(changes[0][2]).toBe(3);
+    })
+    
+    test('insert() dep', () => {
+        const vS = source(eq, [7, 2, 9, 4, 1, 18, 14, 19, 12]);
+        const sortedS = vS.sort((x, y) => x - y);
+        let change = [-1, -1];
+        sortedS.addISubscriber({
+            onInsert: (i, v) => change = [i, v],
+            onRemove: (_) => {},
+            onSubstitute: (_, _1) => {}
+        });
+        
+        vS.insert(3, 3);
+        
+        expect(sortedS.size()).toBe(10);
+        expect(sortedS.at(2)).toBe(3);
+        
+        expect(change[0]).toBe(2);
+        expect(change[1]).toBe(3);
+    });
+    
+    test('remove() dep', () => {
+        const vS = source(eq, [7, 2, 9, 4, 1, 18, 14, 19, 12]);
+        const sortedS = vS.sort((x, y) => x - y);
+        let changeIndex = -1;
+        sortedS.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (i) => changeIndex = i,
+            onSubstitute: (_, _1) => {}
+        });
+        
+        vS.remove(3);
+        
+        expect(sortedS.size()).toBe(8);
+        expect(sortedS.at(2)).toBe(7);
+        
+        expect(changeIndex).toBe(2);
+    });
+});
+
 describe('testing `reduceS`', () => {
     test('ref()', () => {
         const kS = sig.stable(1);

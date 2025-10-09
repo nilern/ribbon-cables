@@ -95,7 +95,7 @@ describe('testing `forVecnal`', () => {
     });
 });
 
-describe('testing `el', () => {
+describe('testing `el`', () => {
     test('creates `__vcnDetached` `Element`', () => {
         const node = dom.el('div', {});
         
@@ -297,7 +297,7 @@ describe('testing `el', () => {
     });
 });
 
-describe('testing `text', () => {
+describe('testing `text`', () => {
     test('from string', () => {
         const text = dom.text('foo');
         

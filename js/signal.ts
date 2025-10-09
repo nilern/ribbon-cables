@@ -8,6 +8,9 @@ export {
 };
 
 import type {Deref, Reset} from "./prelude.js";
+    
+// OPTIMIZE: Why even bother with init in constructors when e.g. `this.vs` is ignored
+// anyway until subscribers appear?
 
 interface Subscriber<T> {
     onChange: (v: T) => void; // TODO: Already reject non-changes here
