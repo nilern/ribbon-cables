@@ -879,7 +879,7 @@ class SortedVecnal<T> extends SubscribingSubscribeableVecnal<T>
         ) {
             for (let li = low, ri = mid, di = low; di < high; ++di) {
                 const l = src[li], r = src[ri];
-                if (li < mid && (ri >= high || cmp(l, r) < 0)) {
+                if (li < mid && (ri >= high || cmp(l, r) <= 0)) {
                     dest[di] = l;
                     destRevIndexMapping[di] = srcRevIndexMapping[li];
                     ++li;
@@ -932,8 +932,12 @@ class SortedVecnal<T> extends SubscribingSubscribeableVecnal<T>
         }
     }
     
-    // FIXME: Ensure stability:
-    private insertionIndex(v: T): number {
+    private stableCompare(xInputIndex: number, x: T, yInputIndex: number, y: T): number {
+        const ordering = this.compare(x, y);
+        return ordering !== 0 ? ordering : xInputIndex - yInputIndex;
+    }
+
+    private insertionIndex(inputIndex: number, v: T): number {
         // Typical cache line size is 64 bytes.
         // Typical object reference size is 8 bytes (even on 32-bit machines due to
         // NaN-tagging).
@@ -948,20 +952,27 @@ class SortedVecnal<T> extends SubscribingSubscribeableVecnal<T>
         ) {
             const mid = low + Math.floor(length / 2);
             
-            const ordering = this.compare(this.vs[mid], v);
+            const ordering = this.stableCompare(
+                this.revIndexMapping[mid], this.vs[mid],
+                inputIndex, v
+            );
             
             if (ordering < 0) {
                 low = mid + 1;
             } else if (ordering > 0) {
                 high = mid;
             } else { // `ordering === 0`
-                low = mid;
-                break;
+                return low;
             }
         }
         
         // Linear search:
-        while (this.compare(this.vs[low], v) < 0) { ++low; }
+        while (this.stableCompare(
+            this.revIndexMapping[low], this.vs[low],
+            inputIndex, v
+        ) < 0) {
+            ++low;
+        }
         
         return low;
     }
@@ -1065,7 +1076,7 @@ class SortedVecnal<T> extends SubscribingSubscribeableVecnal<T>
     unsubscribeFromDeps() { this.input.removeISubscriber(this); }
     
     onInsert(inputIndex: number, v: T) {
-        const index = this.insertionIndex(v);
+        const index = this.insertionIndex(inputIndex, v);
         this.vs.splice(index, 0, v);
         this.insertIndexMapping(inputIndex, index);
         
@@ -1082,7 +1093,7 @@ class SortedVecnal<T> extends SubscribingSubscribeableVecnal<T>
     
     onSubstitute(inputIndex: number, v: T) {
         const removalIndex = this.indexMapping[inputIndex];
-        let insertionIndex = this.insertionIndex(v);
+        let insertionIndex = this.insertionIndex(inputIndex, v);
         if (insertionIndex > removalIndex) {
             --insertionIndex;
         }

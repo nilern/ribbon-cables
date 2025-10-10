@@ -507,6 +507,54 @@ describe('testing `sort`', () => {
         
         expect(changeIndex).toBe(2);
     });
+    
+    test('stable sorting', () => {
+        class User {
+            static private currentId = 0;
+            
+            public readonly id: number;
+        
+            constructor(
+                public username: string
+            ) {
+                this.id = User.currentId++;
+            }
+            
+            eq(that: User): Boolean { return this.id === that.id; }
+        }
+        
+        const userS = source((user1, user2) => user1.eq(user2), [
+            new User("John Doe"),
+            new User("Jane Doe"),
+            new User("Bambi Doe"),
+            new User("John Doe")
+        ]);
+        const sortedUserS = userS.sort((user1, user2) =>
+            user1.username.localeCompare(user2.username)
+        );
+        sortedUserS.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (_) => {},
+            onSubstitute: (_, _1) => {}
+        });
+        
+        expect(sortedUserS.size()).toBe(4);
+        expect(sortedUserS.at(0).username).toBe("Bambi Doe");
+        expect(sortedUserS.at(1).username).toBe("Jane Doe");
+        expect(sortedUserS.at(2).username).toBe("John Doe");
+        expect(sortedUserS.at(2).id).toBe(0);
+        expect(sortedUserS.at(3).username).toBe("John Doe");
+        expect(sortedUserS.at(3).id).toBe(3);
+        
+        userS.insert(4, new User("Jane Doe"));
+        
+        expect(sortedUserS.size()).toBe(5);
+        expect(sortedUserS.at(0).username).toBe("Bambi Doe");
+        expect(sortedUserS.at(1).username).toBe("Jane Doe");
+        expect(sortedUserS.at(1).id).toBe(1);
+        expect(sortedUserS.at(2).username).toBe("Jane Doe");
+        expect(sortedUserS.at(2).id).toBe(4);
+    });
 });
 
 describe('testing `reduceS`', () => {
