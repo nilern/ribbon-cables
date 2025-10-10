@@ -74,6 +74,8 @@ abstract class Vecnal<T> implements IVecnal<T> {
         return new ReducedSignal(equals, f, accS, this);
     }
     
+    // TODO: Default comparator
+    // TODO: `sortBy` (?):
     sort(compare: (x: T, y: T) => number): Vecnal<T> {
         return new SortedVecnal(this, compare);
     }
@@ -944,9 +946,10 @@ class SortedVecnal<T> extends SubscribingSubscribeableVecnal<T>
         const linearTreshold = 8; // 64 / 8
         
         let low = 0;
+        const len = this.vs.length;
         
         // Binary search:
-        for (let high = this.vs.length, length = high - low;
+        for (let high = len, length = high - low;
              length > linearTreshold;
              length = high - low
         ) {
@@ -967,7 +970,7 @@ class SortedVecnal<T> extends SubscribingSubscribeableVecnal<T>
         }
         
         // Linear search:
-        while (this.stableCompare(
+        while (low < len && this.stableCompare(
             this.revIndexMapping[low], this.vs[low],
             inputIndex, v
         ) < 0) {
