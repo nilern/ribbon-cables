@@ -45,7 +45,7 @@ tst.prop({current: fc.string(), goal: fc.string()})(
         );
         const patched = patch(current, goal, edits);
         
-        expect(patched).toBe(goal);
+        expect(patched).toEqual(goal);
     }
 );
 
