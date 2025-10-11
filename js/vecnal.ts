@@ -74,6 +74,8 @@ abstract class Vecnal<T> implements IVecnal<T> {
         return new ReducedSignal(equals, f, accS, this);
     }
     
+    reverse(): Vecnal<T> { return new ReversedVecnal(this); }
+    
     // TODO: Default comparator
     // TODO: `sortBy` (?):
     sort(compare: (x: T, y: T) => number): Vecnal<T> {
@@ -851,6 +853,82 @@ class ThunkSignal<T> extends NonNotifyingSignal<T> {
     }
     
     ref(): T { return this.f(); }
+}
+
+class ReversedVecnal<T> extends SubscribingSubscribeableVecnal<T>
+    implements IndexedSubscriber<T>
+{
+    private readonly vs = [] as T[];
+    
+    constructor(
+        private readonly input: Vecnal<T>
+    ) {
+        super();
+        
+        const len = this.vs.length = input.size();
+        input.reduce((i, v) => {
+            this.vs[i] = v;
+            return i - 1;
+        }, len - 1);
+    }
+    
+    size(): number {
+        if (this.subscribers.size === 0) {
+            return this.input.size();
+        }
+        
+        return this.vs.length;
+    }
+    
+    atOr(index: number, defaultValue: T): T {
+        if (this.subscribers.size === 0) {
+            return this.input.atOr(this.input.size() - index - 1, defaultValue);
+        }
+        
+        if (index >= this.vs.length) { return defaultValue; }
+        
+        return this.vs[index];
+    }
+    
+    reduce<U>(f: (acc: U, v: T) => U, acc: U): U {
+        if (this.subscribers.size === 0) {
+            // OPTIMIZE?:
+            const len = this.input.size();
+            for (let i = len - 1; i >= 0; --i) {
+                acc = f(acc, this.input.at(i)!);
+            }
+            
+            return acc;
+        }
+        
+        return this.vs.reduce(f, acc);
+    }
+    
+    subscribeToDeps() { this.input.addISubscriber(this); }
+    
+    unsubscribeFromDeps() { this.input.removeISubscriber(this); }
+    
+    onInsert(inputIndex: number, v: T) {
+        const index = this.vs.length - inputIndex;
+        this.vs.splice(index, 0, v);
+        
+        this.notifyInsert(index, v);
+    }
+    
+    onRemove(inputIndex: number) {
+        const index = this.vs.length - inputIndex - 1;
+        this.vs.splice(index, 1);
+        
+        this.notifyRemove(index);
+    }
+    
+    onSubstitute(inputIndex: number, v: T) {
+        const index = this.vs.length - inputIndex - 1;
+        const oldV = this.vs[index];
+        this.vs[index] = v;
+        
+        this.notifySubstitute(index, oldV, v);
+    }
 }
 
 class SortedVecnal<T> extends SubscribingSubscribeableVecnal<T>

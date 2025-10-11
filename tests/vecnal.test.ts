@@ -419,6 +419,79 @@ describe('testing `concat`', () => {
     });
 });
 
+describe('testing `reverse`', () => {
+    test('Sized & Indexed<T> & Reducible<T>', () => {
+        const vS = stable([0, 1, 2, 3]);
+        const revS = vS.reverse();
+        
+        expect(revS.size()).toBe(4);
+        
+        expect(revS.at(0)).toBe(3);
+        expect(revS.at(1)).toBe(2);
+        expect(revS.at(2)).toBe(1);
+        expect(revS.at(3)).toBe(0);
+        
+        expect(revS.reduce((acc, n) => acc + n, 0)).toBe(6);
+    });
+    
+    test('setAt() dep', () => {
+        const vS = source(eq, [0, 1, 2, 3]);
+        const revS = vS.reverse();
+        let change = [-1, -1];
+        revS.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (_) => {},
+            onSubstitute: (i, v) => change = [i, v]
+        });
+        
+        vS.setAt(2, 5);
+        
+        expect(revS.size()).toBe(4);
+        expect(revS.at(1)).toBe(5);
+        
+        expect(change[0]).toBe(1);
+        expect(change[1]).toBe(5);
+        expect(revS.reduce((acc, n) => acc + n, 0)).toBe(9);
+    });
+    
+    test('insert() dep', () => {
+        const vS = source(eq, [0, 1, 2, 3]);
+        const revS = vS.reverse();
+        let change = [-1, -1];
+        revS.addISubscriber({
+            onInsert: (i, v) => change = [i, v],
+            onRemove: (_) => {},
+            onSubstitute: (_, _1) => {}
+        });
+        
+        vS.insert(2, 5);
+        
+        expect(revS.size()).toBe(5);
+        expect(revS.at(2)).toBe(5);
+        
+        expect(change[0]).toBe(2);
+        expect(change[1]).toBe(5);
+    });
+    
+    test('remove() dep', () => {
+        const vS = source(eq, [0, 1, 2, 3]);
+        const revS = vS.reverse();
+        let changeIndex = -1;
+        revS.addISubscriber({
+            onInsert: (i, v) => {},
+            onRemove: (i) => changeIndex = i,
+            onSubstitute: (_, _1) => {}
+        });
+        
+        vS.remove(2);
+        
+        expect(revS.size()).toBe(3);
+        expect(revS.at(1)).toBe(1);
+        
+        expect(changeIndex).toBe(1);
+    });
+});
+
 describe('testing `sort`', () => {
     test('Sized & Indexed<T> & Reducible<T>', () => {
         const vS = stable([7, 2, 9, 4, 1, 18, 14, 19, 12]);
