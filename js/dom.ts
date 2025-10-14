@@ -518,24 +518,23 @@ class NodeManager implements NodeFactory, UpdateQueue, Framer {
     
     scheduleUpdate(update: NodeUpdate) { this.updates.push(update); }
     
+    private flush() {
+        for (const update of this.updates) {
+            update();
+        }
+        this.updates.length = 0;
+    }
+    
     frame(mutate: () => void) {
         mutate();
         
-        window.requestAnimationFrame((_) => {
-            for (const update of this.updates) {
-                update();
-            }
-            this.updates.length = 0;
-        });
+        window.requestAnimationFrame((_) => this.flush());
     }
     
     jankyFrame(mutate: () => void) {
         mutate();
         
-        for (const update of this.updates) {
-            update();
-        }
-        this.updates.length = 0;
+        this.flush();
     }
 }
 
