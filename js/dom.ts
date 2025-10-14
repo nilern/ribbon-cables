@@ -4,7 +4,7 @@ export type {
     EventHandler,
     ChildValue, Nest, Fragment,
     TextValue,
-    NodeFactory, Framer
+    NodeFactory, FramingFn, Framer
 };
 export {
     NodeManager,
