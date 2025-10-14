@@ -10,8 +10,9 @@ import {id, eq} from '../js/prelude';
 
 describe('testing `forVecnal`', () => {
     test('hatchChildren()', () => {
+        const nodes = new dom.NodeManager();
         const alphabetS = vec.source(eq, ['a', 'b', 'c']);
-        const alphaNest = dom.forVecnal(alphabetS, dom.text);
+        const alphaNest = nodes.forVecnal(alphabetS, (strS) => nodes.text(strS));
         
         const alphaTexts = alphaNest.hatchChildren();
         
@@ -33,15 +34,16 @@ describe('testing `forVecnal`', () => {
     });
     
     test('setAt() dep', () => {
+        const nodes = new dom.NodeManager();
         const alphabetS = vec.source(eq, ['a', 'b', 'c']);
         const noChange = '';
         let change = noChange;
-        const alphaNest = dom.forVecnal(alphabetS, (strS) => {
+        const alphaNest = nodes.forVecnal(alphabetS, (strS) => {
             if (strS.ref() === 'b') {
                 strS.addSubscriber({onChange: (v) => change = v});
             }
             
-            return dom.text(strS);
+            return nodes.text(strS);
         });
         const alphaTexts = alphaNest.hatchChildren();
         alphaNest.addISubscriber({
@@ -61,8 +63,9 @@ describe('testing `forVecnal`', () => {
     });
     
     test('insert() dep', () => {
+        const nodes = new dom.NodeManager();
         const alphabetS = vec.source(eq, ['a', 'b', 'c']);
-        const alphaNest = dom.forVecnal(alphabetS, dom.text);
+        const alphaNest = nodes.forVecnal(alphabetS, (strS) => nodes.text(strS));
         const alphaTexts = alphaNest.hatchChildren();
         let change = [-1, document.createTextNode('') as Node];
         alphaNest.addISubscriber({
@@ -79,8 +82,9 @@ describe('testing `forVecnal`', () => {
     });
     
     test('remove() dep', () => {
+        const nodes = new dom.NodeManager();
         const alphabetS = vec.source(eq, ['a', 'b', 'c']);
-        const alphaNest = dom.forVecnal(alphabetS, dom.text);
+        const alphaNest = nodes.forVecnal(alphabetS, (strS) => nodes.text(strS));
         const alphaTexts = alphaNest.hatchChildren();
         let changeIndex = -1;
         alphaNest.addISubscriber({
@@ -97,7 +101,8 @@ describe('testing `forVecnal`', () => {
 
 describe('testing `el`', () => {
     test('creates `__vcnDetached` `Element`', () => {
-        const node = dom.el('div', {});
+        const nodes = new dom.NodeManager();
+        const node = nodes.el('div', {});
         
         expect(node instanceof Element).toBeTruthy();
         expect(node.__vcnDetached).toBe(true);
@@ -105,7 +110,8 @@ describe('testing `el`', () => {
     });
     
     test('initializes `AttributeString`', () => {
-        const node = dom.el('link', {
+        const nodes = new dom.NodeManager();
+        const node = nodes.el('link', {
             'rel': 'stylesheet',
             'href': undefined
         });
@@ -114,14 +120,15 @@ describe('testing `el`', () => {
         expect(node.getAttribute('href')).toBe(null);
         
         const valueS = sig.stable('foo');
-        const input = dom.el('input', {'value': valueS});
+        const input = nodes.el('input', {'value': valueS});
         
         expect(input.getAttribute('value')).toBe('foo');
     });
     
     test('initializes style attribute', () => {
+        const nodes = new dom.NodeManager();
         const colorS = sig.stable('black');
-        const node = dom.el('span', {
+        const node = nodes.el('span', {
             'style': {
                 'backgroundColor': 'white',
                 'color': colorS
@@ -135,11 +142,13 @@ describe('testing `el`', () => {
     });
     
     test('initializes event listener', () => {
+        const nodes = new dom.NodeManager();
+        
         // This is complicated by the nonexistence of `getEventListener(s)`.
     
         let event = undefined as Event | undefined;
         const lick = (ev: Event) => event = ev;
-        const node = dom.el('button', {'onclick': lick})
+        const node = nodes.el('button', {'onclick': lick})
         
         const clickEvent = new Event('click');
         node.dispatchEvent(clickEvent);
@@ -148,8 +157,9 @@ describe('testing `el`', () => {
     });
     
     test('reactive attribute', () => {
+        const nodes = new dom.NodeManager();
         const valueS = sig.source(eq, 'foo');
-        const node = dom.el('input', {'value': valueS});
+        const node = nodes.el('input', {'value': valueS});
         dom.appendChild(document.body, node);
     
         valueS.reset('bar');
@@ -158,8 +168,9 @@ describe('testing `el`', () => {
     });
     
     test('reactive style attribute', () => {
+        const nodes = new dom.NodeManager();
         const colorS = sig.source(eq, 'black');
-        const node = dom.el('span', {'style': {'color': colorS}}) as
+        const node = nodes.el('span', {'style': {'color': colorS}}) as
             unknown as HTMLElement; // HACK
         dom.appendChild(document.body, node);
         
@@ -173,8 +184,9 @@ describe('testing `el`', () => {
     });
     
     test('child element', () => {
-        const span = dom.el('span', {});
-        const node = dom.el('div', {}, span);
+        const nodes = new dom.NodeManager();
+        const span = nodes.el('span', {});
+        const node = nodes.el('div', {}, span);
         dom.appendChild(document.body, node);
         
         expect(node.childNodes.length).toBe(1);
@@ -184,8 +196,9 @@ describe('testing `el`', () => {
     });
     
     test('child text', () => {
+        const nodes = new dom.NodeManager();
         const text = 'foo';
-        const node = dom.el('span', {}, text);
+        const node = nodes.el('span', {}, text);
         dom.appendChild(document.body, node);
         
         expect(node.childNodes.length).toBe(1);
@@ -197,8 +210,9 @@ describe('testing `el`', () => {
     });
     
     test('child text from signal', () => {
+        const nodes = new dom.NodeManager();
         const text = sig.stable('foo');
-        const node = dom.el('span', {}, text);
+        const node = nodes.el('span', {}, text);
         dom.appendChild(document.body, node);
         
         expect(node.childNodes.length).toBe(1);
@@ -210,12 +224,13 @@ describe('testing `el`', () => {
     });
     
     test('children from iterable', () => {
+        const nodes = new dom.NodeManager();
         const children = [
-            dom.text('foo'),
-            dom.text('bar'),
-            dom.text('baz'),
+            nodes.text('foo'),
+            nodes.text('bar'),
+            nodes.text('baz'),
         ];
-        const node = dom.el('div', {}, children as Iterable<dom.MountableNode>);
+        const node = nodes.el('div', {}, children as Iterable<dom.MountableNode>);
         dom.appendChild(document.body, node);
         
         expect(node.childNodes.length).toBe(3);
@@ -227,8 +242,10 @@ describe('testing `el`', () => {
     });
     
     test('children from `Vecnal`', () => {
+        const nodes = new dom.NodeManager();
         const strS = vec.stable(['foo', 'bar', 'baz']);
-        const node = dom.el('div', {}, dom.forVecnal(strS, dom.text));
+        const node = nodes.el('div', {},
+            nodes.forVecnal(strS, (strS) => nodes.text(strS)));
         dom.appendChild(document.body, node);
         
         expect(node.childNodes.length).toBe(3);
@@ -242,8 +259,10 @@ describe('testing `el`', () => {
     });
     
     test('reactive children from `Vecnal`', () => {
+        const nodes = new dom.NodeManager();
         const strS = vec.source(eq, ['foo', 'bar', 'baz']);
-        const node = dom.el('div', {}, dom.forVecnal(strS, dom.text));
+        const node = nodes.el('div', {},
+            nodes.forVecnal(strS, (strS) => nodes.text(strS)));
         dom.appendChild(document.body, node);
         
         strS.setAt(1, 'Bar');
@@ -265,12 +284,13 @@ describe('testing `el`', () => {
     });
     
     test('reactive inner children from `Vecnal`', () => {
+        const nodes = new dom.NodeManager();
         const abS = ['a', 'b', 'c'];
         const efS = vec.source(eq, ['e', 'f']);
         const ghS = ['g', 'h'];
-        const node = dom.el('div', {},
+        const node = nodes.el('div', {},
             abS,
-            dom.forVecnal(efS, id),
+            nodes.forVecnal(efS, id),
             ghS
         );
         dom.appendChild(document.body, node);
@@ -299,7 +319,8 @@ describe('testing `el`', () => {
 
 describe('testing `text`', () => {
     test('from string', () => {
-        const text = dom.text('foo');
+        const nodes = new dom.NodeManager();
+        const text = nodes.text('foo');
         
         expect(text instanceof Text).toBeTruthy();
         expect(text.__vcnDetached).toBe(true);
@@ -307,8 +328,9 @@ describe('testing `text`', () => {
     });
     
     test('from signal', () => {
+        const nodes = new dom.NodeManager();
         const dataS = sig.stable('foo');
-        const text = dom.text(dataS);
+        const text = nodes.text(dataS);
         
         expect(text instanceof Text).toBeTruthy();
         expect(text.__vcnDetached).toBe(true);
@@ -316,8 +338,9 @@ describe('testing `text`', () => {
     });
     
     test('`reset()` dep', () => {
+        const nodes = new dom.NodeManager();
         const dataS = sig.source(eq, 'foo');
-        const text = dom.text(dataS);
+        const text = nodes.text(dataS);
         dom.appendChild(document.body, text);
         
         expect(text.__vcnDetached).toBe(false);

@@ -3,11 +3,12 @@ export type {
     AttributeString, BaseAttributeValue, StyleAttributeValue, AttributeValue,
     EventHandler,
     ChildValue, Nest, Fragment,
-    TextValue
+    TextValue,
+    NodeFactory, NodeUpdater
 };
 export {
-    el, text,
-    forVecnal, // TODO: `ifSignal` (unless `Signal<MountableNode>` <: `ChildValue`)
+    NodeManager,
+    // TODO: `ifSignal` (unless `Signal<MountableNode>` <: `ChildValue`)
     appendChild, insertBefore, removeChild, replaceChild
 };
 
@@ -25,11 +26,11 @@ type ChildValue = MountableNode | TextValue; // TODO: `Signal<MountableNode>`
 
 type Nest = ChildValue | Iterable<ChildValue> | Fragment;
 
-function childValueToNode(child: ChildValue): MountableNode {
+function childValueToNode(nodes: NodeFactory, child: ChildValue): MountableNode {
     if (child instanceof Node) {
         return child;
     } else if (typeof child === "string" || child instanceof Signal) {
-        return text(child);
+        return nodes.text(child);
     } else {
         const exhaust: never = child;
         return exhaust;
@@ -39,13 +40,16 @@ function childValueToNode(child: ChildValue): MountableNode {
 // Using the correct variances here although unsafe casts will be required on actual use:
 type Watchees = Map<Observable<any>, Set<Subscriber<never>>>;
 type MultiWatchees = Map<IndexedObservable<any>, Set<IndexedSubscriber<never>>>;
+// TODO: DRY out properties:
 // HACKs for forcibly shoving these properties into DOM nodes:
 interface MountableNode extends Node {
     __vcnDetached?: boolean,
+    __vcnNodes?: NodeFactory,
     __vcnWatchees?: Watchees
 }
 interface MountableElement extends Element {
     __vcnDetached?: boolean,
+    __vcnNodes?: NodeFactory,
     __vcnWatchees?: Watchees,
     __vcnMultiWatchees?: MultiWatchees,
     __vcnNests?: readonly Nest[],
@@ -53,6 +57,7 @@ interface MountableElement extends Element {
 }
 interface MountableText extends Text {
     __vcnDetached?: boolean,
+    __vcnNodes?: NodeFactory,
     __vcnWatchees?: Watchees
 }
 
@@ -91,6 +96,7 @@ class MapFragment<T> extends Fragment implements IndexedSubscriber<T> {
     private readonly signals = [] as ChildSignal<T>[];
     
     constructor(
+        private readonly nodes: NodeFactory,
         private readonly input: Vecnal<T>,
         private readonly f: (v: Signal<T>) => ChildValue
     ) {
@@ -102,7 +108,7 @@ class MapFragment<T> extends Fragment implements IndexedSubscriber<T> {
         return this.input.reduce<MountableNode[]>((children, v) => {
             const vS = new ChildSignal(v);
             this.signals.push(vS);
-            children.push(childValueToNode(this.f(vS)));
+            children.push(childValueToNode(this.nodes, this.f(vS)));
             return children;
         }, []);
     }
@@ -151,7 +157,7 @@ class MapFragment<T> extends Fragment implements IndexedSubscriber<T> {
         const vS = new ChildSignal(v);
         this.signals.splice(i, 0, vS);
     
-        const node = childValueToNode(this.f(vS));
+        const node = childValueToNode(this.nodes, this.f(vS));
         this.notifyInsert(i, node);
     }
     
@@ -162,18 +168,14 @@ class MapFragment<T> extends Fragment implements IndexedSubscriber<T> {
     }
 }
 
-function forVecnal<T>(vS: Vecnal<T>, itemView: (vS: Signal<T>) => ChildValue): Fragment {
-    return new MapFragment(vS, itemView);
-}
-
-function hatchChildren(nest: Nest): Iterable<MountableNode> {
+function hatchChildren(nodes: NodeFactory, nest: Nest): Iterable<MountableNode> {
     if (nest instanceof Node || typeof nest === "string" || nest instanceof Signal) {
-        return [childValueToNode(nest)];
+        return [childValueToNode(nodes, nest)];
     } else if (Symbol.iterator in nest) {
         const children = [];
     
         for (const child of nest) {
-            children.push(childValueToNode(child));
+            children.push(childValueToNode(nodes, child));
         }
     
         return children;
@@ -309,7 +311,7 @@ function mount(node: MountableNode) {
             nests.forEach((nest, nestIndex) => {
                 offsets.push(offset);
                 
-                for (const child of hatchChildren(nest)) {
+                for (const child of hatchChildren(elem.__vcnNodes!, nest)) {
                     mount(child);
                     elem.appendChild(child);
                     ++offset;
@@ -425,35 +427,58 @@ function setAttribute(node: Element, name: string, val: AttributeValue) {
     }
 }
 
-function el(tagName: string, attrs: {[key: string]: AttributeValue}, ...children: Nest[]): 
-    MountableElement
-{
-    const node = document.createElement(tagName) as MountableElement;
-    node.__vcnDetached = true;
+interface NodeFactory {
+    el: (tagName: string, attrs: {[key: string]: AttributeValue}, ...children: Nest[])
+        => MountableElement;
+        
+    text: (data: TextValue) => MountableText;
     
-    // This could also be done lazily if reasons (beyond just consistency with 
-    // `__vcnNests`) arise:
-    for (const attrName in attrs) {
-        setAttribute(node, attrName, attrs[attrName]);
-    }
-    
-    node.__vcnNests = children;
-    
-    return node;
+    forVecnal: <T>(vS: Vecnal<T>, itemView: (vS: Signal<T>) => ChildValue) => Fragment;
 }
 
-function text(data: TextValue): MountableText {
-    const text = data instanceof Signal ? data.ref() : data;
+interface NodeUpdater {
+    // TODO
+}
 
-    const node = document.createTextNode(text) as MountableText;
-    node.__vcnDetached = true;
-    
-    if (data instanceof Signal) {
-        addWatchee(node, data, {
-            onChange: (newStr) => node.replaceData(0, node.length, newStr)
-        });
-    }
+class NodeManager implements NodeFactory, NodeUpdater {
+    constructor() {}
+
+    el(tagName: string, attrs: {[key: string]: AttributeValue}, ...children: Nest[]): 
+        MountableElement
+    {
+        const node = document.createElement(tagName) as MountableElement;
+        node.__vcnDetached = true;
+        node.__vcnNodes = this;
         
-    return node;
+        // This could also be done lazily if reasons (beyond just consistency with 
+        // `__vcnNests`) arise:
+        for (const attrName in attrs) {
+            setAttribute(node, attrName, attrs[attrName]);
+        }
+        
+        node.__vcnNests = children;
+        
+        return node;
+    }
+
+    text(data: TextValue): MountableText {
+        const text = data instanceof Signal ? data.ref() : data;
+
+        const node = document.createTextNode(text) as MountableText;
+        node.__vcnDetached = true;
+        node.__vcnNodes = this;
+        
+        if (data instanceof Signal) {
+            addWatchee(node, data, {
+                onChange: (newStr) => node.replaceData(0, node.length, newStr)
+            });
+        }
+            
+        return node;
+    }
+
+    forVecnal<T>(vS: Vecnal<T>, itemView: (vS: Signal<T>) => ChildValue): Fragment {
+        return new MapFragment(this, vS, itemView);
+    }
 }
 
