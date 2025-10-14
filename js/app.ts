@@ -7,6 +7,7 @@ import * as signal from "./signal.js";
 import type {Vecnal} from "./vecnal.js";
 import * as vecnal from "./vecnal.js";
 import * as dom from "./dom.js";
+import type {NodeFactory, Framer} from "./dom.js";
 import {NodeManager} from "./dom.js";
 
 type Routes = {
@@ -108,34 +109,49 @@ const filterS: Signal<Filter> & Reset<Filter> = signal.source<Filter>(eq, "all")
 
 // TODO: Limited versions for different components:
 class Ctrl {
-    constructor(private readonly model: Signal<Model> & Reset<Model>) {}
+    constructor(
+        private readonly framer: Framer,
+        private readonly model: Signal<Model> & Reset<Model>
+    ) {}
     
     // TODO: `this.model.swap(...)`:
     
     addTodo(text: string, isComplete = false) {
-        this.model.reset(this.model.ref().withTodo(text, isComplete));
+        this.framer.frame(() =>
+            this.model.reset(this.model.ref().withTodo(text, isComplete))
+        );
     }
     
     setIsComplete(id: number, isComplete: boolean) {
-        this.model.reset(this.model.ref().withTodoCompleted(id, isComplete));
+        this.framer.frame(() =>
+            this.model.reset(this.model.ref().withTodoCompleted(id, isComplete))
+        );
     }
     
     setText(id: number, text: string) {
-        this.model.reset(this.model.ref().withTodoText(id, text));
+        this.framer.frame(() =>
+            this.model.reset(this.model.ref().withTodoText(id, text))
+        );
     }
     
     clearTodo(id: number) {
-        this.model.reset(this.model.ref().withoutTodo(id));
+        this.framer.frame(() =>
+            this.model.reset(this.model.ref().withoutTodo(id))
+        );
     }
     
     clearCompleteds() {
-        this.model.reset(this.model.ref().withoutCompleteds());
+        this.framer.frame(() =>
+            this.model.reset(this.model.ref().withoutCompleteds())
+        );
     }
 }
 
-const controller = new Ctrl(model); // Global for REPL testing
+const nodeManager = new NodeManager(); // Global for REPL testing
 
-function todosHeader(nodes: NodeManager, ctrl: Ctrl): Node {
+const controller = new Ctrl(nodeManager, model); // Global for REPL testing
+
+function todosHeader(nodes: NodeFactory, ctrl: Ctrl): Node {
     function handleKey(e: Event) {
         const event = e as KeyboardEvent;
         if (event.key === "Enter") {
@@ -154,7 +170,7 @@ function todosHeader(nodes: NodeManager, ctrl: Ctrl): Node {
                      "onkeydown": handleKey}));
 }
 
-function itemCheckbox(nodes: NodeManager, isCompleteS: Signal<boolean>,
+function itemCheckbox(nodes: NodeFactory, isCompleteS: Signal<boolean>,
     onCompletionChange: (isComplete: boolean) => void
 ): Node {
     const checkedS: Signal<string | undefined> =
@@ -174,19 +190,22 @@ function itemCheckbox(nodes: NodeManager, isCompleteS: Signal<boolean>,
 
 class ItemEditCtrl {
     constructor(
+        private readonly framer: Framer,
         private readonly tmpTextS: Signal<string> & Reset<string>,
         private readonly onFinish: (finalText: string) => void
     ) {}
     
     init(text: string) { this.setText(text); }
     
-    setText(text: string) { this.tmpTextS.reset(text); }
+    setText(text: string) {
+        this.framer.frame(() => this.tmpTextS.reset(text));
+    }
     
     finish() { this.onFinish(this.tmpTextS.ref()); }
 }
 
 // TODO: Interaction:
-function itemEditor(nodes: NodeManager, ctrl: ItemEditCtrl, isEditingS: Signal<boolean>, 
+function itemEditor(nodes: NodeFactory, ctrl: ItemEditCtrl, isEditingS: Signal<boolean>, 
     tmpTextS: Signal<string>
 ): Node {
     const displayEditS: Signal<string> =
@@ -205,7 +224,7 @@ function itemEditor(nodes: NodeManager, ctrl: ItemEditCtrl, isEditingS: Signal<b
     });
 }
 
-function item(nodes: NodeManager, ctrl: Ctrl, todoS: Signal<Todo>): Node {
+function item(nodes: NodeFactory & Framer, ctrl: Ctrl, todoS: Signal<Todo>): Node {
     function onDestroy(_: Event) { ctrl.clearTodo(todoS.ref().id); }
     
     function onCompletionChange(isComplete: boolean) {
@@ -213,13 +232,13 @@ function item(nodes: NodeManager, ctrl: Ctrl, todoS: Signal<Todo>): Node {
     }
     
     function startEditing(_: Event) {
-        isEditingS.reset(true);
+        nodes.frame(() => isEditingS.reset(true));
         editCtrl.init(textS.ref());
     }
     
     function finishEditing(finalText: string) {
         ctrl.setText(todoS.ref().id, finalText);
-        isEditingS.reset(false);
+        nodes.frame(() => isEditingS.reset(false));
     }
     
     const isCompleteS = todoS.map(eq, ({isComplete}: Todo) => isComplete);
@@ -246,7 +265,7 @@ function item(nodes: NodeManager, ctrl: Ctrl, todoS: Signal<Todo>): Node {
         );
         
     const tmpTextS = signal.source(eq, textS.ref());
-    const editCtrl = new ItemEditCtrl(tmpTextS, finishEditing);
+    const editCtrl = new ItemEditCtrl(nodes, tmpTextS, finishEditing);
 
     return nodes.el("li", {"class": classeS},
         nodes.el("div", {"class": "view"}, 
@@ -259,7 +278,7 @@ function item(nodes: NodeManager, ctrl: Ctrl, todoS: Signal<Todo>): Node {
         itemEditor(nodes, editCtrl, isEditingS, tmpTextS));
 }
 
-function todoList(nodes: NodeManager, ctrl: Ctrl, todoS: Vecnal<Todo>): Node {
+function todoList(nodes: NodeFactory & Framer, ctrl: Ctrl, todoS: Vecnal<Todo>): Node {
     return nodes.el("section", {"class": "main"},
         nodes.el("input", {"id": "toggle-all", "class": "toggle-all", "type": "checkbox"}),
         nodes.el("label", {"for": "toggle-all"}, "Mark all as complete"),
@@ -268,7 +287,7 @@ function todoList(nodes: NodeManager, ctrl: Ctrl, todoS: Vecnal<Todo>): Node {
             nodes.forVecnal(todoS, (todoS) => item(nodes, ctrl, todoS))));
 }
 
-function todoFilter(nodes: NodeManager, label: string, path: string,
+function todoFilter(nodes: NodeFactory, label: string, path: string,
     isSelected: Signal<boolean>
 ): Node {
     return nodes.el("li", {},
@@ -277,7 +296,7 @@ function todoFilter(nodes: NodeManager, label: string, path: string,
              label));
 }
 
-function todosFooter(nodes: NodeManager, ctrl: Ctrl, todoCount: Signal<number>,
+function todosFooter(nodes: NodeFactory, ctrl: Ctrl, todoCount: Signal<number>,
     filterS: Signal<Filter>
 ): Node {
     function onClearCompleteds(_: Event) {
@@ -302,7 +321,7 @@ function todosFooter(nodes: NodeManager, ctrl: Ctrl, todoCount: Signal<number>,
             "Clear completed"));
 }
 
-function createUI(nodes: NodeManager, ctrl: Ctrl, todoS: Signal<readonly Todo[]>,
+function createUI(nodes: NodeFactory & Framer, ctrl: Ctrl, todoS: Signal<readonly Todo[]>,
     filterS: Signal<Filter>
 ): Element {
     const visibleTodoS: Signal<ImmArrayAdapter<Todo>> = todoS.map2(eq,
@@ -320,17 +339,16 @@ function createUI(nodes: NodeManager, ctrl: Ctrl, todoS: Signal<readonly Todo[]>
 
 // TODO: Do not hammer `filterS` directly from here:
 const routes = {
-    "/": () => filterS.reset("all"),
-    "/active": () => filterS.reset("active"),
-    "/completed": () => filterS.reset("completed")
+    "/": () => nodeManager.frame(() => filterS.reset("all")),
+    "/active": () => nodeManager.frame(() => filterS.reset("active")),
+    "/completed": () => nodeManager.frame(() => filterS.reset("completed"))
 };
 
 (function (window) {
 	'use strict';
 
-    const nodes = new NodeManager();
     const todos = model.map(eq, (model: Model) => model.todos);
-	const ui = createUI(nodes, controller, todos, filterS);
+	const ui = createUI(nodeManager, controller, todos, filterS);
 	const body = document.body;
 	dom.insertBefore(body, ui, body.children[0]);
 	

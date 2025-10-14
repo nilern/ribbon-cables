@@ -4,7 +4,7 @@ export type {
     EventHandler,
     ChildValue, Nest, Fragment,
     TextValue,
-    NodeFactory, NodeUpdater
+    NodeFactory, Framer
 };
 export {
     NodeManager,
@@ -44,12 +44,12 @@ type MultiWatchees = Map<IndexedObservable<any>, Set<IndexedSubscriber<never>>>;
 // HACKs for forcibly shoving these properties into DOM nodes:
 interface MountableNode extends Node {
     __vcnDetached?: boolean,
-    __vcnNodes?: NodeFactory,
+    __vcnNodes?: NodeFactory & UpdateQueue,
     __vcnWatchees?: Watchees
 }
 interface MountableElement extends Element {
     __vcnDetached?: boolean,
-    __vcnNodes?: NodeFactory,
+    __vcnNodes?: NodeFactory & UpdateQueue,
     __vcnWatchees?: Watchees,
     __vcnMultiWatchees?: MultiWatchees,
     __vcnNests?: readonly Nest[],
@@ -57,7 +57,7 @@ interface MountableElement extends Element {
 }
 interface MountableText extends Text {
     __vcnDetached?: boolean,
-    __vcnNodes?: NodeFactory,
+    __vcnNodes?: NodeFactory & UpdateQueue,
     __vcnWatchees?: Watchees
 }
 
@@ -266,32 +266,40 @@ class Nanny implements IndexedSubscriber<Node> {
         
         const index = offsets[this.nestIndex] + subIndex;
         const successor = this.parent.childNodes[index];
-        insertBefore(this.parent, child, successor);
         
-        {
-            const len = offsets.length;
-            for (let i = this.nestIndex + 1; i < len; ++i) {
-                ++offsets[i];
+        this.parent.__vcnNodes!.scheduleUpdate(() => {
+            insertBefore(this.parent, child, successor);
+            
+            {
+                const len = offsets.length;
+                for (let i = this.nestIndex + 1; i < len; ++i) {
+                    ++offsets[i];
+                }
             }
-        }
+        });
     }
     
     onRemove(subIndex: number) {
         const offsets = this.parent.__vcnOffsets!;
         
         const index = offsets[this.nestIndex] + subIndex;
-        removeChild(this.parent, this.parent.childNodes[index]);
         
-        {
-            const len = offsets.length;
-            for (let i = this.nestIndex + 1; i < len; ++i) {
-                --offsets[i];
+        this.parent.__vcnNodes!.scheduleUpdate(() => {
+            removeChild(this.parent, this.parent.childNodes[index]);
+            
+            {
+                const len = offsets.length;
+                for (let i = this.nestIndex + 1; i < len; ++i) {
+                    --offsets[i];
+                }
             }
-        }
+        });
     }
 
     onSubstitute(i: number, child: Node) {
-        replaceChild(this.parent, child, this.parent.childNodes[i]);
+        this.parent.__vcnNodes!.scheduleUpdate(() =>
+            replaceChild(this.parent, child, this.parent.childNodes[i])
+        );
     }
 }
 
@@ -391,26 +399,17 @@ function setAttributeString(node: Element, name: string, val: AttributeString) {
     }
 }
 
-function setStyleAttribute(node: HTMLElement, name: string, val: BaseAttributeValue) {
-    if (typeof val === "string" || typeof val === "undefined") {
-        (node.style as unknown as StyleAttributeValue)[name] = val;
-    } else if (val instanceof Signal) {
-        (node.style as unknown as StyleAttributeValue)[name] = val.ref();
-        addWatchee(node as unknown as MountableNode, val, {onChange: (newVal) => {
-            (node.style as unknown as StyleAttributeValue)[name] = newVal;
-        }});
-    } else {
-        const _exhaust: never = val;
-    }
-}
-
-function setAttribute(node: Element, name: string, val: AttributeValue) {
+function initAttribute(
+    updater: UpdateQueue, node: Element, name: string, val: AttributeValue
+) {
     if (typeof val === "string" || typeof val === "undefined") {
         setAttributeString(node, name, val);
     } else if (val instanceof Signal) {
         setAttributeString(node, name, val.ref());
-        addWatchee(node as unknown as MountableNode, val, {onChange: (newVal) =>
-            setAttributeString(node, name, newVal)
+        addWatchee(node as unknown as MountableNode, val, {
+            onChange: (newVal) => updater.scheduleUpdate(() =>
+                setAttributeString(node, name, newVal)
+            )
         });
     } else if (typeof val === "function") {
         console.assert(name.slice(0, 2) === "on", "%s does not begin with 'on'", name);
@@ -420,8 +419,27 @@ function setAttribute(node: Element, name: string, val: AttributeValue) {
         console.assert(name === "style", "%s !== \"style\"", name); // FIXME: Ensure this statically
         
         for (const key in val) {
-            setStyleAttribute(node as HTMLElement, key, val[key]);
+            initStyleAttribute(updater, node as HTMLElement, key, val[key]);
         }
+    } else {
+        const _exhaust: never = val;
+    }
+}
+
+// TODO: Should we actually `delete` instead of
+// `this.element.style[this.name] = undefined`?:
+function initStyleAttribute(
+    updater: UpdateQueue, node: HTMLElement, name: string, val: BaseAttributeValue
+) {
+    if (typeof val === "string" || typeof val === "undefined") {
+        (node.style as unknown as StyleAttributeValue)[name] = val;
+    } else if (val instanceof Signal) {
+        (node.style as unknown as StyleAttributeValue)[name] = val.ref();
+        addWatchee(node as unknown as MountableNode, val, {
+            onChange: (newVal) => updater.scheduleUpdate(() =>
+                (node.style as unknown as StyleAttributeValue)[name] = newVal
+            )
+        });
     } else {
         const _exhaust: never = val;
     }
@@ -436,11 +454,26 @@ interface NodeFactory {
     forVecnal: <T>(vS: Vecnal<T>, itemView: (vS: Signal<T>) => ChildValue) => Fragment;
 }
 
-interface NodeUpdater {
-    // TODO
+type NodeUpdate = () => void;
+
+interface UpdateQueue {
+    scheduleUpdate: (update: NodeUpdate) => void;
 }
 
-class NodeManager implements NodeFactory, NodeUpdater {
+// TODO: Statically ensure that mutations are contained inside this (by e.g.
+// passing a Witness/Capability to `mutate`)?:
+type FramingFn = (mutate: () => void) => void;
+
+interface Framer {
+    frame: FramingFn,
+    
+    /** {@link frame} without `requestAnimationFrame` (for testing). */
+    jankyFrame: FramingFn
+}
+
+class NodeManager implements NodeFactory, UpdateQueue, Framer {
+    private readonly updates = [] as NodeUpdate[];
+
     constructor() {}
 
     el(tagName: string, attrs: {[key: string]: AttributeValue}, ...children: Nest[]): 
@@ -453,7 +486,7 @@ class NodeManager implements NodeFactory, NodeUpdater {
         // This could also be done lazily if reasons (beyond just consistency with 
         // `__vcnNests`) arise:
         for (const attrName in attrs) {
-            setAttribute(node, attrName, attrs[attrName]);
+            initAttribute(this, node, attrName, attrs[attrName]);
         }
         
         node.__vcnNests = children;
@@ -470,7 +503,9 @@ class NodeManager implements NodeFactory, NodeUpdater {
         
         if (data instanceof Signal) {
             addWatchee(node, data, {
-                onChange: (newStr) => node.replaceData(0, node.length, newStr)
+                onChange: (newStr) => this.scheduleUpdate(() =>
+                    node.replaceData(0, node.length, newStr)
+                )
             });
         }
             
@@ -479,6 +514,28 @@ class NodeManager implements NodeFactory, NodeUpdater {
 
     forVecnal<T>(vS: Vecnal<T>, itemView: (vS: Signal<T>) => ChildValue): Fragment {
         return new MapFragment(this, vS, itemView);
+    }
+    
+    scheduleUpdate(update: NodeUpdate) { this.updates.push(update); }
+    
+    frame(mutate: () => void) {
+        mutate();
+        
+        window.requestAnimationFrame((_) => {
+            for (const update of this.updates) {
+                update();
+            }
+            this.updates.length = 0;
+        });
+    }
+    
+    jankyFrame(mutate: () => void) {
+        mutate();
+        
+        for (const update of this.updates) {
+            update();
+        }
+        this.updates.length = 0;
     }
 }
 

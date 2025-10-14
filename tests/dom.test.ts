@@ -162,7 +162,7 @@ describe('testing `el`', () => {
         const node = nodes.el('input', {'value': valueS});
         dom.appendChild(document.body, node);
     
-        valueS.reset('bar');
+        nodes.jankyFrame(() => valueS.reset('bar'));
         
         expect(node.getAttribute('value')).toBe('bar');
     });
@@ -174,7 +174,7 @@ describe('testing `el`', () => {
             unknown as HTMLElement; // HACK
         dom.appendChild(document.body, node);
         
-        colorS.reset('red');
+        nodes.jankyFrame(() => colorS.reset('red'));
         
         const style = node.style as
             unknown as {[key: string]: dom.BaseAttributeValue}; // HACK
@@ -265,17 +265,17 @@ describe('testing `el`', () => {
             nodes.forVecnal(strS, (strS) => nodes.text(strS)));
         dom.appendChild(document.body, node);
         
-        strS.setAt(1, 'Bar');
+        nodes.jankyFrame(() => strS.setAt(1, 'Bar'));
         
         expect(node.childNodes.length).toBe(3);
         expect((node.childNodes[1] as Text).data).toBe('Bar');
         
-        strS.insert(3, 'quux');
+        nodes.jankyFrame(() => strS.insert(3, 'quux'));
         
         expect(node.childNodes.length).toBe(4);
         expect((node.childNodes[3] as Text).data).toBe('quux');
         
-        strS.remove(1);
+        nodes.jankyFrame(() => strS.remove(1));
         
         expect(node.childNodes.length).toBe(3);
         expect((node.childNodes[1] as Text).data).toBe('baz');
@@ -295,19 +295,19 @@ describe('testing `el`', () => {
         );
         dom.appendChild(document.body, node);
         
-        efS.insert(0, 'D');
+        nodes.jankyFrame(() => efS.insert(0, 'D'));
         
         expect(node.childNodes.length).toBe(8);
         expect((node.childNodes[3] as Text).data).toBe('D');
         expect((node.childNodes[6] as Text).data).toBe('g');
         
-        efS.setAt(0, 'd');
+        nodes.jankyFrame(() => efS.setAt(0, 'd'));
         
         expect(node.childNodes.length).toBe(8);
         expect((node.childNodes[3] as Text).data).toBe('d');
         expect((node.childNodes[6] as Text).data).toBe('g');
         
-        efS.remove(0);
+        nodes.jankyFrame(() => efS.remove(0));
         
         expect(node.childNodes.length).toBe(7);
         expect((node.childNodes[3] as Text).data).toBe('e');
@@ -346,7 +346,7 @@ describe('testing `text`', () => {
         expect(text.__vcnDetached).toBe(false);
         expect(text.data).toBe('foo');
         
-        dataS.reset('bar');
+        nodes.jankyFrame(() => dataS.reset('bar'));
         
         expect(text.data).toBe('bar');
         
