@@ -125,6 +125,72 @@ tst.prop({usernames: fc.array(fc.string(), {maxLength}), ops: fc.array(arbOp)})(
 );
 
 tst.prop({usernames: fc.array(fc.string())})(
+    '`reverse` output is input reversed',
+    ({usernames}) => {
+        const usernameS = vec.stable(usernames);
+        const revUsernameS = usernameS.reverse();
+        
+        const vecnalUsernames = revUsernameS.reduce((acc, username) => {
+            acc.push(username);
+            return acc;
+        }, []);
+        const revUsernames = [...usernames];
+        revUsernames.reverse();
+        
+        expect(vecnalUsernames).toEqual(revUsernames);
+    }
+);
+
+tst.prop({usernames: fc.array(fc.string(), {maxLength}), ops: fc.array(arbOp)})(
+    '`reverse` output after input modifications is still input reversed',
+    ({usernames, ops}) => {
+        const usernameS = vec.source(eq, usernames);
+        const revUsernameS = usernameS.reverse();
+        revUsernameS.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (_) => {},
+            onSubstitute: (_, _1) => {}
+        });
+        
+        for (const op of ops) {
+            switch (op.name) {
+            case 'insert':
+                if (op.index <= usernameS.size()) {
+                    usernameS.insert(op.index, op.username);
+                }
+                break;
+            
+            case 'remove':
+                if (op.index < usernameS.size()) {
+                    usernameS.remove(op.index);
+                }
+                break;
+            
+            case 'substitute':
+                if (op.index < usernameS.size()) {
+                    usernameS.setAt(op.index, op.username);
+                }
+                break;
+            
+            default: { const _exhaust: never = op.name; }
+            }
+        }
+        
+        const vecnalUsernames = revUsernameS.reduce((acc, username) => {
+            acc.push(username);
+            return acc;
+        }, []);
+        const revUsernames = usernameS.reduce((acc, username) => {
+            acc.push(username);
+            return acc;
+        }, []);
+        revUsernames.reverse();
+        
+        expect(vecnalUsernames).toEqual(revUsernames);
+    }
+);
+
+tst.prop({usernames: fc.array(fc.string())})(
     '`sort` output is input sorted',
     ({usernames}) => {
         const initialUsers = usernames.map((username, id) => new User(id, username));
