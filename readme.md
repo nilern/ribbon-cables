@@ -14,7 +14,7 @@
         * Basic tests
         * Property-based testing
 * Performance
-    - Microbenchmarks (for e.g. `diff`)
+    - Microbenchmarks (for e.g. `diff` & `sort`)
     - Macrobenchmarks (e.g. https://github.com/krausest/js-framework-benchmark)
 
 ---
