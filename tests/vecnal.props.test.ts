@@ -124,6 +124,79 @@ tst.prop({usernames: fc.array(fc.string(), {maxLength}), ops: fc.array(arbOp)})(
     }
 );
 
+tst.prop({inputs: fc.array(fc.array(fc.string()))})(
+    '`concat` output is elements of inputs',
+    ({inputs}) => {
+        const inputVecnals = inputs.map(vec.stable);
+        const catenated = vec.concat.apply(undefined, inputVecnals);
+        
+        const catVals = catenated.reduce((acc, username) => {
+            acc.push(username);
+            return acc;
+        }, []);
+        const vals = inputs.flat();
+        
+        expect(catVals).toEqual(vals);
+    }
+);
+
+const arbCatOp = fc.tuple(fc.nat(maxLength), arbOp);
+
+tst.prop({
+    inputs: fc.array(fc.array(fc.string(), {maxLength}, {maxLength})),
+    ops: fc.array(arbCatOp)
+})(
+    '`concat` output after input modifications is still input reversed',
+    ({inputs, ops}) => {
+        const inputVecnals = inputs.map((input) => vec.source(eq, input));
+        const catenated = vec.concat.apply(undefined, inputVecnals);
+        catenated.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (_) => {},
+            onSubstitute: (_, _1) => {}
+        });
+        
+        for (const [i, op] of ops) {
+            if (i < inputVecnals.length) {
+                const input = inputVecnals[i];
+            
+                switch (op.name) {
+                case 'insert':
+                    if (op.index <= input.size()) {
+                        input.insert(op.index, op.username);
+                    }
+                    break;
+                
+                case 'remove':
+                    if (op.index < input.size()) {
+                        input.remove(op.index);
+                    }
+                    break;
+                
+                case 'substitute':
+                    if (op.index < input.size()) {
+                        input.setAt(op.index, op.username);
+                    }
+                    break;
+                
+                default: { const _exhaust: never = op.name; }
+                }
+            }
+        }
+        
+        const catVals = catenated.reduce((acc, username) => {
+            acc.push(username);
+            return acc;
+        }, []);
+        const vals = inputVecnals.flatMap((input) => input.reduce((acc, username) => {
+            acc.push(username);
+            return acc;
+        }, []));
+        
+        expect(catVals).toEqual(vals);
+    }
+);
+
 tst.prop({usernames: fc.array(fc.string())})(
     '`reverse` output is input reversed',
     ({usernames}) => {
