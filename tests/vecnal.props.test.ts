@@ -197,6 +197,72 @@ tst.prop({
     }
 );
 
+function isOdd(n: number): boolean { return n % 2 === 1; }
+
+tst.prop({nats: fc.array(fc.nat())})(
+    '`filter` output is valid elements of input',
+    ({nats}) => {
+        const natS = vec.stable(nats);
+        const oddS = natS.filter(isOdd);
+        
+        const vecnalOdds = oddS.reduce((acc, n) => {
+            acc.push(n);
+            return acc;
+        }, []);
+        const odds = nats.filter(isOdd);
+        
+        expect(vecnalOdds).toEqual(odds);
+    }
+);
+
+tst.prop({nats: fc.array(fc.nat(), {maxLength}), ops: fc.array(arbOp)})(
+    '`filter` output after input modifications is still valid elements of input',
+    ({nats, ops}) => {
+        const natS = vec.source(eq, nats);
+        const oddS = natS.filter(isOdd);
+        oddS.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (_) => {},
+            onSubstitute: (_, _1) => {}
+        });
+        
+        for (const op of ops) {
+            switch (op.name) {
+            case 'insert':
+                if (op.index <= natS.size()) {
+                    natS.insert(op.index, op.username.length); // HACK
+                }
+                break;
+            
+            case 'remove':
+                if (op.index < natS.size()) {
+                    natS.remove(op.index);
+                }
+                break;
+            
+            case 'substitute':
+                if (op.index < natS.size()) {
+                    natS.setAt(op.index, op.username.length); // HACK
+                }
+                break;
+            
+            default: { const _exhaust: never = op.name; }
+            }
+        }
+        
+        const vecnalOdds = oddS.reduce((acc, n) => {
+            acc.push(n);
+            return acc;
+        }, []);
+        const odds = natS.reduce((acc, n) => {
+            if (isOdd(n)) { acc.push(n); }
+            return acc;
+        }, []);
+        
+        expect(vecnalOdds).toEqual(odds);
+    }
+);
+
 tst.prop({usernames: fc.array(fc.string())})(
     '`reverse` output is input reversed',
     ({usernames}) => {
