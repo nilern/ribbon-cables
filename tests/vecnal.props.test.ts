@@ -212,7 +212,7 @@ tst.prop({
     inputs: fc.array(fc.array(fc.string(), {maxLength}, {maxLength})),
     ops: fc.array(arbCatOp)
 })(
-    '`concat` output after input modifications is still input reversed',
+    '`concat` output after input modifications is still elements of inputs',
     ({inputs, ops}) => {
         const inputVecnals = inputs.map((input) => vec.source(eq, input));
         const catenated = vec.concat.apply(undefined, inputVecnals);
