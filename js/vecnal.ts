@@ -536,7 +536,7 @@ class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
     }
     
     private spliceRemovalIndex(inputIndex: number) {
-        const newLen = this.input.size() - 1;
+        const newLen = this.indexMapping.length - 1;
         for (let i = inputIndex; i < newLen; ++i) {
             const outputIndex = this.indexMapping[i + 1];
             this.indexMapping[i] = outputIndex >= 0
