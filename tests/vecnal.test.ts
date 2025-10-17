@@ -1,3 +1,4 @@
+import * as vec from "../js/vecnal";
 import {stable, source, lift, concat, imux} from "../js/vecnal";
 
 import * as sig from "../js/signal";
@@ -94,6 +95,18 @@ describe('testing `source`', () => {
         expect(alphabetS.size()).toBe(2);
         expect(alphabetS.at(1)).toBe('c');
         expect(changeIndex).toBe(1);
+    });
+});
+
+describe('testing `empty`', () => {
+    test('Sized & Indexed<T> & Reducible<T>', () => {
+        const nopeS = vec.empty();
+        
+        expect(nopeS.size()).toBe(0);
+        
+        expect(nopeS.at(0)).toBe(undefined);
+        
+        expect(nopeS.reduce((acc, answer) => acc + answer, 5)).toBe(5);
     });
 });
 

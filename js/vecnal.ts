@@ -4,7 +4,7 @@ export type {
 export {
     Vecnal,
     stable, source,
-    imux, lift,
+    imux, empty, lift,
     concat
 };
 
@@ -750,6 +750,20 @@ class ConcatVecnal<T> extends SubscribingSubscribeableVecnal<T> {
 }
 
 function concat<T>(...vecnals: Vecnal<T>[]): Vecnal<T> { return new ConcatVecnal(vecnals); }
+
+class EmptyVecnal<T> extends NonNotifyingVecnal<T> {
+    static readonly INSTANCE: EmptyVecnal<any> = new EmptyVecnal();
+
+    constructor() { super(); }
+    
+    size(): number { return 0; }
+    
+    atOr(i: number, defaultValue: T): T { return defaultValue; }
+    
+    reduce<U>(_: (acc: U, v: T) => U, acc: U): U { return acc; }
+}
+
+function empty<T>(): Vecnal<T> { return EmptyVecnal.INSTANCE as EmptyVecnal<T>; }
 
 class SingleElementVecnal<T> extends SubscribingSubscribeableVecnal<T>
     implements Subscriber<T>
