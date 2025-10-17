@@ -604,7 +604,7 @@ class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
             if (this.f(v)) { // New value is not filtered out
                 const insertionIndex = this.insertionIndex(i);
         
-                this.vs.splice(i, 0, v);
+                this.vs.splice(insertionIndex, 0, v);
                 this.insertInsertionIndex(i, insertionIndex);
                 
                 this.notifyInsert(insertionIndex, v);

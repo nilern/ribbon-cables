@@ -281,36 +281,6 @@ tst.prop({nats: fc.array(fc.nat())})(
     }
 );
 
-/* FIXME:
-Property failed after 29 tests
-    { seed: -75322986, path: "28:2:0:1:5:7:9:9:9:13:13:17:11:1:11:6:0:12:12:14:15:15:15", endOnFailure: true }
-    Counterexample: [{"nats":[0,0],"ops":[{"name":"insert","index":2,"username":" "},{"name":"substitute","index":1,"username":"   "}]}]
-    Shrunk 22 time(s)
-
-    Hint: Enable verbose mode in order to have the list of all failing values encountered during the run
-
-      at buildError (node_modules/fast-check/lib/check/runner/utils/RunDetailsFormatter.js:156:19)
-      at asyncThrowIfFailed (node_modules/fast-check/lib/check/runner/utils/RunDetailsFormatter.js:170:11)
-
-    Cause:
-    expect(received).toEqual(expected) // deep equality
-
-    - Expected  - 1
-    + Received  + 1
-
-      Array [
-    -   3,
-        1,
-    +   3,
-      ]
-
-      278 |         }, []);
-      279 |         
-    > 280 |         expect(vecnalOdds).toEqual(odds);
-          |                            ^
-      281 |     }
-      282 | );
-*/
 tst.prop({nats: fc.array(fc.nat(), {maxLength}), ops: fc.array(arbOp)})(
     '`filter` output after input modifications is still valid elements of input',
     ({nats, ops}) => {
