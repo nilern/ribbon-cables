@@ -48,6 +48,7 @@ interface ListBuilder<Item, Coll> {
     build: () => Coll;
 }
 
+// TODO: Make iterable:
 abstract class Vecnal<T> implements IVecnal<T> {
     abstract size(): number;
     
