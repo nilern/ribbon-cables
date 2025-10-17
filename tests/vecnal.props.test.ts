@@ -57,6 +57,72 @@ function compareUsernames(user1: User, user2: User): number {
     return user1.username.localeCompare(user2.username);
 }
 
+function inc(n: number): number { return n + 1; }
+
+tst.prop({nats: fc.array(fc.nat())})(
+    '`map` output is input elements transformed',
+    ({nats}) => {
+        const natS = vec.stable(nats);
+        const nattieS = natS.map(eq, inc);
+        
+        const vecnalNatties = nattieS.reduce((acc, n) => {
+            acc.push(n);
+            return acc;
+        }, []);
+        const natties = nats.map(inc);
+        
+        expect(vecnalNatties).toEqual(natties);
+    }
+);
+
+tst.prop({nats: fc.array(fc.nat(), {maxLength}), ops: fc.array(arbOp)})(
+    '`map` output after input modifications is still input elements transformed',
+    ({nats, ops}) => {
+        const natS = vec.source(eq, nats);
+        const nattieS = natS.map(eq, inc);
+        nattieS.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (_) => {},
+            onSubstitute: (_, _1) => {}
+        });
+        
+        for (const op of ops) {
+            switch (op.name) {
+            case 'insert':
+                if (op.index <= natS.size()) {
+                    natS.insert(op.index, /* HACK: */ op.username.length);
+                }
+                break;
+            
+            case 'remove':
+                if (op.index < natS.size()) {
+                    natS.remove(op.index);
+                }
+                break;
+            
+            case 'substitute':
+                if (op.index < natS.size()) {
+                    natS.setAt(op.index, /* HACK: */ op.username.length);
+                }
+                break;
+            
+            default: { const _exhaust: never = op.name; }
+            }
+        }
+        
+        const vecnalNatties = nattieS.reduce((acc, n) => {
+            acc.push(n);
+            return acc;
+        }, []);
+        const natties = natS.reduce((acc, n) => {
+            acc.push(inc(n));
+            return acc;
+        }, []);
+        
+        expect(vecnalNatties).toEqual(natties);
+    }
+);
+
 tst.prop({usernames: fc.array(fc.string())})(
     '`imux` output is input elements',
     ({usernames}) => {
@@ -215,6 +281,36 @@ tst.prop({nats: fc.array(fc.nat())})(
     }
 );
 
+/* FIXME:
+Property failed after 29 tests
+    { seed: -75322986, path: "28:2:0:1:5:7:9:9:9:13:13:17:11:1:11:6:0:12:12:14:15:15:15", endOnFailure: true }
+    Counterexample: [{"nats":[0,0],"ops":[{"name":"insert","index":2,"username":" "},{"name":"substitute","index":1,"username":"   "}]}]
+    Shrunk 22 time(s)
+
+    Hint: Enable verbose mode in order to have the list of all failing values encountered during the run
+
+      at buildError (node_modules/fast-check/lib/check/runner/utils/RunDetailsFormatter.js:156:19)
+      at asyncThrowIfFailed (node_modules/fast-check/lib/check/runner/utils/RunDetailsFormatter.js:170:11)
+
+    Cause:
+    expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Array [
+    -   3,
+        1,
+    +   3,
+      ]
+
+      278 |         }, []);
+      279 |         
+    > 280 |         expect(vecnalOdds).toEqual(odds);
+          |                            ^
+      281 |     }
+      282 | );
+*/
 tst.prop({nats: fc.array(fc.nat(), {maxLength}), ops: fc.array(arbOp)})(
     '`filter` output after input modifications is still valid elements of input',
     ({nats, ops}) => {
@@ -387,7 +483,6 @@ Property failed after 43 tests
           |                              ^
       399 |     }
       400 | );
-      401 |
 */
 tst.prop({usernames: fc.array(fc.string(), {maxLength}), ops: fc.array(arbOp)})(
     '`sort` output after input modifications is still input sorted',
