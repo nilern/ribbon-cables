@@ -262,12 +262,11 @@ class Nanny implements IndexedSubscriber<Node> {
     ) {}
 
     onInsert(subIndex: number, child: Node) {
-        const offsets = this.parent.__vcnOffsets!;
-        
-        const index = offsets[this.nestIndex] + subIndex;
-        const successor = this.parent.childNodes[index];
-        
         this.parent.__vcnNodes!.scheduleUpdate(() => {
+            const offsets = this.parent.__vcnOffsets!;
+            
+            const index = offsets[this.nestIndex] + subIndex;
+            const successor = this.parent.childNodes[index];
             insertBefore(this.parent, child, successor);
             
             {
@@ -280,11 +279,10 @@ class Nanny implements IndexedSubscriber<Node> {
     }
     
     onRemove(subIndex: number) {
-        const offsets = this.parent.__vcnOffsets!;
-        
-        const index = offsets[this.nestIndex] + subIndex;
-        
         this.parent.__vcnNodes!.scheduleUpdate(() => {
+            const offsets = this.parent.__vcnOffsets!;
+            
+            const index = offsets[this.nestIndex] + subIndex;
             removeChild(this.parent, this.parent.childNodes[index]);
             
             {
@@ -296,10 +294,12 @@ class Nanny implements IndexedSubscriber<Node> {
         });
     }
 
-    onSubstitute(i: number, child: Node) {
-        this.parent.__vcnNodes!.scheduleUpdate(() =>
-            replaceChild(this.parent, child, this.parent.childNodes[i])
-        );
+    onSubstitute(subIndex: number, child: Node) {
+        this.parent.__vcnNodes!.scheduleUpdate(() => {
+            const offsets = this.parent.__vcnOffsets!;
+            const index = offsets[this.nestIndex] + subIndex;
+            replaceChild(this.parent, child, this.parent.childNodes[index])
+        });
     }
 }
 
@@ -362,7 +362,6 @@ function insertBefore(parent: Element, child: Node, successor: Node) {
     parent.insertBefore(child, successor);
     if (isMounted(parent)) {
         mount(child);
-        activateSink(parent as unknown as MountableNode);
     }
 }
 
@@ -471,6 +470,29 @@ interface Framer {
     jankyFrame: FramingFn
 }
 
+/* FIXME:
+,"vs":[" "," "," "," "," "," ","","","","",""," "," "," "," ","","","","",""," "," "," "," ","","","","",""," "," "," "," "," ",""," ","","","","","","","","","","",""," "," "," "," "," ","","","","","","","(","(","(","(","(","","","","","","","l(","l(","l(","l(","","","","","","","]","]","]","]","]","]","","]","]","]","]","]","]","]","]","]","]","","]","]","]","]","]","]","]","]","]","","]","]","]"]},"ops":[{"name":"insert","index":6,"username":""},{"name":"substitute","index":6,"username":" "}]}]}]
+    Shrunk 18 time(s)
+
+    Hint: Enable verbose mode in order to have the list of all failing values encountered during the run
+
+      at buildError (node_modules/fast-check/lib/check/runner/utils/RunDetailsFormatter.js:156:19)
+      at asyncThrowIfFailed (node_modules/fast-check/lib/check/runner/utils/RunDetailsFormatter.js:170:11)
+
+    Cause:
+    expect(received).toBe(expected) // Object.is equality
+
+    Expected: " "
+    Received: ""
+
+      212 |         element.childNodes.forEach((child, i) => {
+      213 |             expect(child instanceof Text).toBeTruthy();
+    > 214 |             expect((child as Text).data).toBe(childDatas[i]);
+          |                                          ^
+      215 |         });
+      216 |         
+      217 |         dom.removeChild(document.body, element);
+*/
 class NodeManager implements NodeFactory, UpdateQueue, Framer {
     private readonly updates = [] as NodeUpdate[];
 

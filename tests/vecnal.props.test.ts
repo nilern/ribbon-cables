@@ -209,7 +209,7 @@ tst.prop({inputs: fc.array(fc.array(fc.string()))})(
 const arbCatOp = fc.tuple(fc.nat(maxLength), arbOp);
 
 tst.prop({
-    inputs: fc.array(fc.array(fc.string(), {maxLength}, {maxLength})),
+    inputs: fc.array(fc.array(fc.string(), {maxLength}), {maxLength}),
     ops: fc.array(arbCatOp)
 })(
     '`concat` output after input modifications is still elements of inputs',
