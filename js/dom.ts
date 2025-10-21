@@ -464,8 +464,7 @@ function initStyleAttribute(
 }
 
 interface NodeFactory {
-    el: (tagName: string, attrs: {[key: string]: AttributeValue}, ...children: Nest[])
-        => MountableElement;
+    el: (tagName: string, attrs: InitAttrs, ...children: Nest[]) => MountableElement;
         
     text: (data: TextValue) => MountableText;
     
