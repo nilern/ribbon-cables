@@ -541,8 +541,10 @@ class NodeManager implements NodeFactory, UpdateQueue, Framer {
     scheduleUpdate(update: NodeUpdate) { this.updates.push(update); }
     
     private flush() {
-        for (const update of this.updates) {
-            update();
+        // The update functions can generate more updates so using indexed loop
+        // without `const len = this.updates.length` to surely get to the actual end:
+        for (let i = 0; i < this.updates.length; ++i) {
+            this.updates[i]();
         }
         this.updates.length = 0;
     }
