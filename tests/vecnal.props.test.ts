@@ -413,47 +413,6 @@ tst.prop({usernames: fc.array(fc.string())})(
     }
 );
 
-/* FIXME:
-Property failed after 43 tests
-    { seed: 328864510, path: "42:4:7:10:13:26:33:20:17:17:17:25:17:20:18:26:17:30:22:26:28:2:17:13:13:24:24:27:26:27:14:12:18:18", endOnFailure: true }
-    Counterexample: [{"usernames":["","",""," ",""],"ops":[{"name":"remove","index":3},{"name":"insert","index":4,"username":""}]}]
-    Shrunk 33 time(s)
-
-    Hint: Enable verbose mode in order to have the list of all failing values encountered during the run
-
-      at buildError (node_modules/fast-check/lib/check/runner/utils/RunDetailsFormatter.js:156:19)
-      at asyncThrowIfFailed (node_modules/fast-check/lib/check/runner/utils/RunDetailsFormatter.js:170:11)
-
-    Cause:
-    expect(received).toEqual(expected) // deep equality
-
-    - Expected  - 2
-    + Received  + 2
-
-    @@ -10,13 +10,13 @@
-        User {
-          "id": 2,
-          "username": "",
-        },
-        User {
-    -     "id": 4,
-    +     "id": 5,
-          "username": "",
-        },
-        User {
-    -     "id": 5,
-    +     "id": 4,
-          "username": "",
-        },
-      ]
-
-      396 |             .sort(compareUsernames)
-      397 |         
-    > 398 |         expect(vecnalSorted).toEqual(arraySorted);
-          |                              ^
-      399 |     }
-      400 | );
-*/
 tst.prop({usernames: fc.array(fc.string(), {maxLength}), ops: fc.array(arbOp)})(
     '`sort` output after input modifications is still input sorted',
     ({usernames, ops}) => {

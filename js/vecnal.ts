@@ -1119,7 +1119,7 @@ class SortedVecnal<T> extends SubscribingSubscribeableVecnal<T>
             const len = this.revIndexMapping.length;
             for (let i = 0; i < len; ++i) {
                 const j = this.revIndexMapping[i];
-                if (j > index) {
+                if (j > inputIndex) {
                     this.revIndexMapping[i] = j - 1;
                 }
             }
