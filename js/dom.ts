@@ -470,29 +470,6 @@ interface Framer {
     jankyFrame: FramingFn
 }
 
-/* FIXME:
-,"vs":[" "," "," "," "," "," ","","","","",""," "," "," "," ","","","","",""," "," "," "," ","","","","",""," "," "," "," "," ",""," ","","","","","","","","","","",""," "," "," "," "," ","","","","","","","(","(","(","(","(","","","","","","","l(","l(","l(","l(","","","","","","","]","]","]","]","]","]","","]","]","]","]","]","]","]","]","]","]","","]","]","]","]","]","]","]","]","]","","]","]","]"]},"ops":[{"name":"insert","index":6,"username":""},{"name":"substitute","index":6,"username":" "}]}]}]
-    Shrunk 18 time(s)
-
-    Hint: Enable verbose mode in order to have the list of all failing values encountered during the run
-
-      at buildError (node_modules/fast-check/lib/check/runner/utils/RunDetailsFormatter.js:156:19)
-      at asyncThrowIfFailed (node_modules/fast-check/lib/check/runner/utils/RunDetailsFormatter.js:170:11)
-
-    Cause:
-    expect(received).toBe(expected) // Object.is equality
-
-    Expected: " "
-    Received: ""
-
-      212 |         element.childNodes.forEach((child, i) => {
-      213 |             expect(child instanceof Text).toBeTruthy();
-    > 214 |             expect((child as Text).data).toBe(childDatas[i]);
-          |                                          ^
-      215 |         });
-      216 |         
-      217 |         dom.removeChild(document.body, element);
-*/
 class NodeManager implements NodeFactory, UpdateQueue, Framer {
     private readonly updates = [] as NodeUpdate[];
 
