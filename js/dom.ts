@@ -1,7 +1,7 @@
 export type {
     MountableNode, MountableElement, MountableText,
     AttributeString, BaseAttributeValue, StyleAttributeValue, AttributeValue,
-    EventHandler,
+    EventHandler, InitAttrs,
     ChildValue, Nest, Fragment,
     TextValue,
     NodeFactory, FramingFn, Framer
@@ -20,7 +20,17 @@ import {Vecnal} from "./vecnal.js";
 
 type TextValue = string | Signal<string>;
 
+type AttributeString = string | undefined;
+
+type BaseAttributeValue = AttributeString | Signal<AttributeString>;
+
 type EventHandler = (event: Event) => void;
+
+type StyleAttributeValue = {[key: string]: BaseAttributeValue};
+
+type AttributeValue = BaseAttributeValue | EventHandler | StyleAttributeValue;
+
+type InitAttrs = {[key: string]: AttributeValue};
 
 type ChildValue = MountableNode | TextValue; // TODO: `Signal<MountableNode>`
 
@@ -41,6 +51,7 @@ function childValueToNode(nodes: NodeFactory, child: ChildValue): MountableNode 
 type Watchees = Map<Observable<any>, Set<Subscriber<never>>>;
 type MultiWatchees = Map<IndexedObservable<any>, Set<IndexedSubscriber<never>>>;
 // TODO: DRY out properties:
+// TODO: Most of these props are actually not optional (after checked cast):
 // HACKs for forcibly shoving these properties into DOM nodes:
 interface MountableNode extends Node {
     __vcnDetached?: boolean,
@@ -52,13 +63,15 @@ interface MountableElement extends Element {
     __vcnNodes?: NodeFactory & UpdateQueue,
     __vcnWatchees?: Watchees,
     __vcnMultiWatchees?: MultiWatchees,
+    __vcnAttrs?: InitAttrs,
     __vcnNests?: readonly Nest[],
     __vcnOffsets?: number[]
 }
 interface MountableText extends Text {
     __vcnDetached?: boolean,
     __vcnNodes?: NodeFactory & UpdateQueue,
-    __vcnWatchees?: Watchees
+    __vcnWatchees?: Watchees,
+    __vcnData?: Signal<string>
 }
 
 class ChildSignal<T> extends SubscribeableSignal<T> implements Reset<T> {
@@ -310,6 +323,13 @@ function isMounted(node: Node): boolean {
 function mount(node: MountableNode) {
     if (node instanceof Element) {
         const elem = node as MountableElement;
+        
+        const attrs = elem.__vcnAttrs;
+        if (attrs) {
+            for (const attrName in attrs) {
+                initAttribute(elem.__vcnNodes!, node, attrName, attrs[attrName]);
+            }
+        }
     
         const nests = elem.__vcnNests;
         if (nests) {
@@ -331,6 +351,13 @@ function mount(node: MountableNode) {
             });
             
             elem.__vcnOffsets = offsets;
+        }
+    } else if (node instanceof Text) {
+        const text = node as MountableText;
+        
+        const data = text.__vcnData;
+        if (data) {
+            text.data = data.ref();
         }
     }
     
@@ -379,14 +406,6 @@ function replaceChild(parent: Element, child: Node, oldChild: Node) {
         mount(child);
     }
 }
-
-type AttributeString = string | undefined;
-
-type BaseAttributeValue = AttributeString | Signal<AttributeString>;
-
-type StyleAttributeValue = {[key: string]: BaseAttributeValue};
-
-type AttributeValue = BaseAttributeValue | EventHandler | StyleAttributeValue;
 
 function setAttributeString(node: Element, name: string, val: AttributeString) {
     if (typeof val === "string") {
@@ -475,35 +494,29 @@ class NodeManager implements NodeFactory, UpdateQueue, Framer {
 
     constructor() {}
 
-    el(tagName: string, attrs: {[key: string]: AttributeValue}, ...children: Nest[]): 
-        MountableElement
-    {
+    el(tagName: string, attrs: InitAttrs, ...children: Nest[]): MountableElement {
         const node = document.createElement(tagName) as MountableElement;
         node.__vcnDetached = true;
         node.__vcnNodes = this;
-        
-        // This could also be done lazily if reasons (beyond just consistency with 
-        // `__vcnNests`) arise:
-        for (const attrName in attrs) {
-            initAttribute(this, node, attrName, attrs[attrName]);
-        }
-        
+        node.__vcnAttrs = attrs;
         node.__vcnNests = children;
         
         return node;
     }
 
     text(data: TextValue): MountableText {
-        const text = data instanceof Signal ? data.ref() : data;
+        const text = data instanceof Signal ? "" : data;
 
         const node = document.createTextNode(text) as MountableText;
         node.__vcnDetached = true;
         node.__vcnNodes = this;
         
         if (data instanceof Signal) {
+            node.__vcnData = data;
+            
             addWatchee(node, data, {
                 onChange: (newStr) => this.scheduleUpdate(() =>
-                    node.replaceData(0, node.length, newStr)
+                    node.data = newStr
                 )
             });
         }

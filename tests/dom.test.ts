@@ -23,8 +23,12 @@ describe('testing `forVecnal`', () => {
                 const str = alphabetS.at(i)!;
                 
                 expect(node instanceof Text).toBeTruthy();
-                const textNode = node as Text;
-                expect(textNode.data).toBe(str);
+                const textNode = node as dom.MountableText;
+                if (!textNode.__vcnData) {
+                    expect(textNode.data).toBe(str);
+                } else {
+                    expect(textNode.__vcnData.ref()).toBe(str);
+                }
             
                 ++i;
             }
@@ -78,7 +82,12 @@ describe('testing `forVecnal`', () => {
         
         expect(change[0]).toBe(0);
         expect(change[1] instanceof Text).toBeTruthy();
-        expect((change[1] as Text).data).toBe('Z');
+        const textNode = change[1]  as dom.MountableText;
+        if (!textNode.__vcnData) {
+            expect(textNode.data).toBe(str);
+        } else {
+            expect(textNode.__vcnData.ref()).toBe('Z');
+        }
     });
     
     test('remove() dep', () => {
@@ -115,14 +124,20 @@ describe('testing `el`', () => {
             'rel': 'stylesheet',
             'href': undefined
         });
+        dom.appendChild(document.body, node);
         
         expect(node.getAttribute('rel')).toBe('stylesheet');
         expect(node.getAttribute('href')).toBe(null);
         
+        dom.removeChild(document.body, node);
+        
         const valueS = sig.stable('foo');
         const input = nodes.el('input', {'value': valueS});
+        dom.appendChild(document.body, input);
         
         expect(input.getAttribute('value')).toBe('foo');
+        
+        dom.removeChild(document.body, input);
     });
     
     test('initializes style attribute', () => {
@@ -134,11 +149,14 @@ describe('testing `el`', () => {
                 'color': colorS
             }
         }) as unknown as HTMLElement; // HACK
+        dom.appendChild(document.body, node);
         
         const style = node.style as
             unknown as {[key: string]: dom.BaseAttributeValue}; // HACK
         expect(style['background-color']).toBe('white');
         expect(style['color']).toBe('black');
+        
+        dom.removeChild(document.body, node);
     });
     
     test('initializes event listener', () => {
@@ -148,12 +166,15 @@ describe('testing `el`', () => {
     
         let event = undefined as Event | undefined;
         const lick = (ev: Event) => event = ev;
-        const node = nodes.el('button', {'onclick': lick})
+        const node = nodes.el('button', {'onclick': lick});
+        dom.appendChild(document.body, node);
         
         const clickEvent = new Event('click');
         node.dispatchEvent(clickEvent);
         
         expect(event).toBe(clickEvent);
+        
+        dom.removeChild(document.body, node);
     });
     
     test('reactive attribute', () => {
@@ -331,10 +352,13 @@ describe('testing `text`', () => {
         const nodes = new dom.NodeManager();
         const dataS = sig.stable('foo');
         const text = nodes.text(dataS);
+        dom.appendChild(document.body, text);
         
         expect(text instanceof Text).toBeTruthy();
-        expect(text.__vcnDetached).toBe(true);
+        expect(text.__vcnDetached).toBe(false);
         expect(text.data).toBe('foo');
+        
+        dom.removeChild(document.body, text);
     });
     
     test('`reset()` dep', () => {
