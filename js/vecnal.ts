@@ -16,6 +16,10 @@ import * as signal from "./signal.js";
 import {Signal, NonNotifyingSignal, CheckingSubscribingSubscribeableSignal}
     from "./signal.js";
     
+// FIXME?: When a single change in dep causes multiple changes in vecnals (e.g. `slice`,
+// `imux`, `sort`), dependents can observe intermediate states that do not strictly
+// adhere to the vecnal contract (e.g. sorted vecnal missing an element of sortee).
+    
 // OPTIMIZE: Why even bother with init in constructors when e.g. `this.vs` is ignored
 // anyway until subscribers appear?
 
@@ -63,6 +67,12 @@ abstract class Vecnal<T> implements IVecnal<T> {
     abstract notifySubstitute(i: number, v: T, u: T): void;
     
     at(i: number): T | undefined { return this.atOr(i, undefined as T); }
+    
+    // TODO: Optional `start` & `end`:
+    // TODO: Negative indices and other such oddities (see `Array.prototype.slice`):
+    slice(start: number, end: number): Vecnal<T> {
+        return new SliceVecnal(this, start, end);
+    }
     
     map<U>(equals: (x: U, y: U) => boolean, f: (v: T) => U): Vecnal<U> {
         return new MappedVecnal(equals, f, this);
@@ -273,6 +283,89 @@ class SourceVecnal<T> extends CheckingSubscribeableVecnal<T> implements Spliceab
 function source<T>(equals: (x: T, y: T) => boolean, initVals: Reducible<T>
 ): Vecnal<T> & Spliceable<T> {
     return new SourceVecnal(equals, initVals);
+}
+
+class SliceVecnal<T> extends SubscribingSubscribeableVecnal<T>
+    implements IndexedSubscriber<T>
+{
+    constructor(
+        private readonly input: Vecnal<T>,
+        private readonly start: number,
+        private end: number
+    ) {
+        super();
+    }
+    
+    size(): number {
+        const inputLen = this.input.size();
+        
+        if (this.start >= inputLen) { return 0; }
+        
+        if (this.end >= inputLen) { return inputLen - this.start; }
+        
+        return this.end - this.start;
+    }
+    
+    atOr(i: number, defaultVal: T): T {
+        if (i >= this.size()) { return defaultVal; }
+        
+        return this.input.atOr(this.start + i, defaultVal);
+    }
+    
+    reduce<U>(f: (acc: U, v: T) => U, acc: U): U {
+        for (let i = this.start; i < this.end && i < this.input.size(); ++i) {
+            acc = f(acc, this.input.at(i)!);
+        }
+        
+        return acc;
+    }
+    
+    subscribeToDeps() { this.input.addISubscriber(this); }
+    
+    unsubscribeFromDeps() { this.input.removeISubscriber(this); }
+    
+    onInsert(inputIndex: number, v: T) {
+        if (inputIndex < this.start) {
+            ++this.end; // HACK?
+            this.notifyInsert(0, this.input.at(this.start)!);
+            
+            --this.end; // HACK?
+            this.notifyRemove(this.size() - 1);
+        } else if (inputIndex < this.end) {
+            ++this.end; // HACK?
+            this.notifyInsert(inputIndex - this.start, v);
+            
+            --this.end; // HACK?
+            this.notifyRemove(this.size() - 1);
+        } // else `inputIndex >= this.end` => noop
+    }
+    
+    onRemove(inputIndex: number) {
+        if (inputIndex < this.start) {
+            --this.end; // HACK?
+            this.notifyRemove(0);
+            
+            ++this.end; // HACK?
+            if (this.end <= this.input.size()) {
+                this.notifyInsert(this.size() - 1, this.input.at(this.end - 1)!);
+            }
+        } else if (inputIndex < this.end) {
+            --this.end; // HACK?
+            this.notifyRemove(inputIndex - this.start);
+            
+            ++this.end; // HACK?
+            if (this.end <= this.input.size()) {
+                this.notifyInsert(this.size() - 1, this.input.at(this.end - 1)!);
+            }
+        } // else `inputIndex >= this.end` => noop
+    }
+    
+    onSubstitute(inputIndex: number, v: T) {
+        if (inputIndex >= this.start && inputIndex < this.end) {
+            const index = inputIndex - this.start;
+            this.notifySubstitute(index, this.at(index)!, v);
+        }
+    }
 }
 
 class MappedVecnal<U, T> extends CheckingSubscribingSubscribeableVecnal<U>

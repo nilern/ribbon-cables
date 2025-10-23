@@ -98,6 +98,112 @@ describe('testing `source`', () => {
     });
 });
 
+describe('testing `slice`', () => {
+    test('Sized & Indexed<T> & Reducible<T>', () => {
+        const natS = vec.stable([0, 1, 2, 3, 4, 5, 6, 7]);
+        const sliceS = natS.slice(2, 5);
+        
+        expect(sliceS.size()).toBe(3);
+        
+        expect(sliceS.at(0)).toBe(2);
+        expect(sliceS.at(1)).toBe(3);
+        expect(sliceS.at(2)).toBe(4);
+        expect(sliceS.at(3)).toBe(undefined);
+        
+        expect(sliceS.reduce((acc, ans) => acc + ans, 0)).toBe(9);
+    });
+    
+    test('setAt() dep', () => {
+        const natS = vec.source(eq, [0, 1, 2, 3, 4, 5, 6, 7]);
+        const sliceS = natS.slice(2, 5);
+        const noChange = [-1, -1];
+        let change = noChange;
+        sliceS.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (_) => {},
+            onSubstitute: (i, v) => change = [i, v]
+        });
+        
+        natS.setAt(1, 42);
+        
+        expect(change).toBe(noChange);
+        
+        natS.setAt(3, 42);
+        expect(change).toEqual([1, 42]);
+        
+        change = noChange;
+        natS.setAt(6, 42);
+        
+        expect(change).toBe(noChange);
+    });
+    
+    test('insert() dep', () => {
+        const natS = vec.source(eq, [0, 1, 2, 3, 4, 5, 6, 7]);
+        const sliceS = natS.slice(2, 5);
+        let changes = [];
+        sliceS.addISubscriber({
+            onInsert: (i, v) => changes.push(['insert', i, v]),
+            onRemove: (i) => changes.push(['remove', i, -1]),
+            onSubstitute: (i, v) => changes.push(['substitute', i, v])
+        });
+        
+        natS.insert(1, 0);
+        
+        expect(sliceS.at(0)).toBe(1);
+        expect(changes).toEqual([
+            ['insert', 0, 1],
+            ['remove', 2, -1]
+        ]);
+        
+        changes.length = 0;
+        natS.insert(3, 1);
+        
+        expect(sliceS.at(1)).toBe(1);
+        expect(changes).toEqual([
+            ['insert', 1, 1],
+            ['remove', 2, -1]
+        ]);
+        
+        changes.length = 0;
+        natS.insert(6, 2);
+        
+        expect(changes).toEqual([]);
+    });
+    
+    test('remove() dep', () => {
+        const natS = vec.source(eq, [0, 1, 2, 3, 4, 5, 6, 7]);
+        const sliceS = natS.slice(2, 5);
+        let changes = [];
+        sliceS.addISubscriber({
+            onInsert: (i, v) => changes.push(['insert', i, v]),
+            onRemove: (i) => changes.push(['remove', i, -1]),
+            onSubstitute: (i, v) => changes.push(['substitute', i, v])
+        });
+        
+        natS.remove(1); // => [0, 2, 3, 4, 5, 6, 7]
+        
+        expect(sliceS.at(0)).toBe(3);
+        expect(changes).toEqual([
+            ['remove', 0, -1],
+            ['insert', 2, 5]
+        ]);
+        
+        changes.length = 0;
+        natS.remove(3); // => [0, 2, 3, 5, 6, 7]
+        
+        expect(sliceS.at(1)).toBe(5);
+        expect(changes).toEqual([
+            ['remove', 1, -1],
+            ['insert', 2, 6]
+        ]);
+        
+        changes.length = 0;
+        natS.remove(5); // => [0, 2, 3, 5, 6]
+        
+        expect(changes).toEqual([]);
+    });
+});
+
 describe('testing `empty`', () => {
     test('Sized & Indexed<T> & Reducible<T>', () => {
         const nopeS = vec.empty();

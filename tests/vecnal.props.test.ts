@@ -27,22 +27,26 @@ type Substitution = {
 
 type Op = Insertion | Removal | Substitution;
 
-const arbOp: Arb<Op> = fc.oneof(
-    fc.record({
-        'name': fc.constant('insert'),
-        'index': fc.nat(maxLength),
-        'username': fc.string()
-    }),
-    fc.record({
-        'name': fc.constant('remove'),
-        'index': fc.nat(maxLength)
-    }),
-    fc.record({
-        'name': fc.constant('substitute'),
-        'index': fc.nat(maxLength),
-        'username': fc.string()
-    })
-);
+function arbOpIn(maxLength: number): Arb<Op> {
+    return fc.oneof(
+        fc.record({
+            'name': fc.constant('insert'),
+            'index': fc.nat(maxLength),
+            'username': fc.string()
+        }),
+        fc.record({
+            'name': fc.constant('remove'),
+            'index': fc.nat(maxLength)
+        }),
+        fc.record({
+            'name': fc.constant('substitute'),
+            'index': fc.nat(maxLength),
+            'username': fc.string()
+        })
+    );
+}
+
+const arbOp: Arb<Op> = arbOpIn(maxLength);
 
 class User {
     constructor(
@@ -58,6 +62,90 @@ function compareUsernames(user1: User, user2: User): number {
 }
 
 function inc(n: number): number { return n + 1; }
+
+const arbSlicing = fc.array(fc.string())
+    .chain((usernames) => fc.record({
+        usernames: fc.constant(usernames),
+        end: fc.nat(usernames.length)
+    }))
+    .chain(({usernames, end}) => fc.record({
+        usernames: fc.constant(usernames),
+        start: fc.nat(end),
+        end: fc.constant(end)
+    }));
+
+const arbSlicingHistory = arbSlicing
+    .chain(({usernames, start, end}) => fc.record({
+        usernames: fc.constant(usernames),
+        start: fc.constant(start),
+        end: fc.constant(end),
+        ops: fc.array(arbOpIn(usernames.length))
+    }));
+
+tst.prop({slicing: arbSlicing})(
+    '`slice` output is subrange of input',
+    ({slicing}) => {
+        const usernameS = vec.stable(slicing.usernames);
+        const sliceS = usernameS.slice(slicing.start, slicing.end);
+        
+        const vecnalSlice = sliceS.reduce((acc, v) => {
+            acc.push(v);
+            return acc;
+        }, []);
+        const slice = slicing.usernames.slice(slicing.start, slicing.end);
+        
+        expect(vecnalSlice).toEqual(slice);
+    }
+);
+
+tst.prop({history: arbSlicingHistory})(
+    '`slice` output after input modifications is still subrange of input',
+    ({history}) => {
+        const usernameS = vec.source(eq, history.usernames);
+        const sliceS = usernameS.slice(history.start, history.end);
+        sliceS.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (_) => {},
+            onSubstitute: (_, _1) => {}
+        });
+        
+        for (const op of history.ops) {
+            switch (op.name) {
+            case 'insert':
+                if (op.index <= usernameS.size()) {
+                    usernameS.insert(op.index, op.username);
+                }
+                break;
+            
+            case 'remove':
+                if (op.index < usernameS.size()) {
+                    usernameS.remove(op.index);
+                }
+                break;
+            
+            case 'substitute':
+                if (op.index < usernameS.size()) {
+                    usernameS.setAt(op.index, op.username);
+                }
+                break;
+            
+            default: { const _exhaust: never = op.name; }
+            }
+        }
+        
+        const vecnalSlice = sliceS.reduce((acc, v) => {
+            acc.push(v);
+            return acc;
+        }, []);
+        const slice = usernameS.reduce((acc, v) => {
+            acc.push(v);
+            return acc;
+        }, []).slice(history.start, history.end);
+        
+        expect(sliceS.size()).toEqual(slice.length);
+        expect(vecnalSlice).toEqual(slice);
+    }
+);
 
 tst.prop({nats: fc.array(fc.nat())})(
     '`map` output is input elements transformed',
