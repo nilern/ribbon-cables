@@ -1,10 +1,11 @@
 import {Suite} from 'bench-node';
 
 import * as vec from '../js/vecnal.js';
-import {Vecnal} from '../js/vecnal.js';
+import {Vecnal, IndexedSubscriber} from '../js/vecnal.js';
 
 import * as sig from '../js/signal.js';
-import {Signal} from '../js/signal.js';
+import {Signal, Subscriber} from '../js/signal.js';
+import type {Reset} from '../js/prelude.js';
 import {ImmArrayAdapter, eq} from '../js/prelude.js';
 
 const suite = new Suite();
@@ -58,6 +59,10 @@ class User {
     }
     
     fullname(): string { return this.firstname + ' ' + this.lastname; }
+    
+    withFirstname(newFirstname: string): User {
+        return new User(newFirstname, this.lastname);
+    }
 }
 
 function compareUsersByName(user1: User, user2: User): number {
@@ -73,7 +78,8 @@ const initialUsers: readonly User[] = firstnames.reduce<User[]>((users, firstnam
     []
 );
 
-const userS: Signal<readonly User[]> = sig.stable(initialUsers);
+const userS: Signal<readonly User[]> & Reset<readonly User[]> =
+    sig.source(eq, initialUsers);
 const userZ: Vecnal<User> = (() => {
     const adaptedUserS = userS.map<ImmArrayAdapter<User>>(eq, (users) =>
         new ImmArrayAdapter(users)
@@ -90,8 +96,9 @@ order by lastname, firstname
 limit 10 offset 30;
 ```
 */
-suite.add('Initialize page signal of bonus user fullnames', () => {
-    userS
+
+function bonusUserFullnameS(userS: Signal<readonly User[]>): Signal<readonly string[]> {
+    return userS
         .map<readonly User[]>(eq, (users) => users.filter((user) => user.bonusProgram))
         .map<readonly User[]>(eq, (users) => {
             const users_ = [...users];
@@ -100,13 +107,52 @@ suite.add('Initialize page signal of bonus user fullnames', () => {
         })
         .map<readonly string[]>(eq, (users) => users.map((user) => user.fullname()))
         .map(eq, (fullnames) => fullnames.slice(30, 40));
-});
-suite.add('Initialize page vecnal of bonus user fullnames', () => {
-    userZ
+}
+
+function bonusUserFullnameZ(userZ: Vecnal<User>): Vecnal<string> {
+    return userZ
         .filter((user) => user.bonusProgram)
         .sort(compareUsersByName)
-        .map(eq, (user) => user.fullname())
+        .map<string>(eq, (user) => user.fullname())
         .slice(30, 40);
+}
+
+suite.add('Initialize page signal of bonus user fullnames', () => {
+    bonusUserFullnameS(userS);
+});
+suite.add('Initialize page vecnal of bonus user fullnames', () => {
+    bonusUserFullnameZ(userZ);
+});
+
+const theBonusUserFullnameS = bonusUserFullnameS(userS);
+const theBonusUserFullnameZ = bonusUserFullnameZ(userZ);
+let updateeIndex = 0;
+
+suite.add('Update user in page signal of bonus user fullnames', () => {
+    const subscriber: Subscriber<readonly string[]> = {onChange: (_) => {}};
+    theBonusUserFullnameS.addSubscriber(subscriber);
+    
+    const newUsers = [...userS.ref()];
+    newUsers[updateeIndex] = newUsers[updateeIndex].withFirstname('Marie');
+    userS.reset(newUsers);
+    
+    theBonusUserFullnameS.removeSubscriber(subscriber);
+    updateeIndex = (updateeIndex + 17) % userS.ref().length;
+});
+suite.add('Update user in page vecnal of bonus user fullnames', () => {
+    const subscriber: IndexedSubscriber<string> = {
+        onInsert: (_, _1) => {},
+        onRemove: (_) => {},
+        onSubstitute: (_, _1) => {}
+    };
+    theBonusUserFullnameZ.addISubscriber(subscriber);
+    
+    const newUsers = [...userS.ref()];
+    newUsers[updateeIndex] = newUsers[updateeIndex].withFirstname('Marie');
+    userS.reset(newUsers);
+    
+    theBonusUserFullnameZ.removeISubscriber(subscriber);
+    updateeIndex = (updateeIndex + 17) % userS.ref().length;
 });
 
 /* Approximately
