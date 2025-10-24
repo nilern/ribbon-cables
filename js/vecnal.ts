@@ -19,7 +19,17 @@ import {Signal, NonNotifyingSignal, CheckingSubscribingSubscribeableSignal}
 // FIXME?: When a single change in dep causes multiple changes in vecnals (e.g. `slice`,
 // `imux`, `sort`), dependents can observe intermediate states that do not strictly
 // adhere to the vecnal contract (e.g. sorted vecnal missing an element of sortee).
-    
+// OTOH conventional signal DAG:s already have similar wobbles from diamonds (e.g.
+// `const a = source(eq, 5); const b = a.map(eq, inc); const c = a.map(eq, dec);
+// const d = b.map2(eq, (x, y) => x + y); a.reset(a.ref() + 1);` causes a moment where
+// d = b + c = (a1 + 1) + (a0 - 1) = a1 + a0 = (a0 + 1) + a0 = 2a0 + 1 although the 
+// expected contract is that always d = b + c = (a + 1) + (a - 1) = 2a. Perhaps e.g. S.js
+// fixes that by explicitly traversing the DAG and updating it "transactionally" but
+// even then sinks (e.g. the DOM) are updated sequentially. Ultimately the only hope is
+// to only render a frame after all the changes have fully propagated; since we are using
+// the DOM we approximate that by just flushing the change batch as quickly as possible 
+// with `requestAnimationFrame`.
+
 // OPTIMIZE: Why even bother with init in constructors when e.g. `this.vs` is ignored
 // anyway until subscribers appear?
 
