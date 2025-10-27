@@ -929,7 +929,11 @@ class SingleElementVecnal<T> extends SubscribingSubscribeableVecnal<T>
     
     reduce<U>(f: (acc: U, v: T) => U, acc: U): U { return f(acc, this.v); }
     
-    subscribeToDeps() { this.signal.addSubscriber(this); }
+    subscribeToDeps() {
+        this.signal.addSubscriber(this);
+        
+        this.v = this.signal.ref();
+    }
     
     unsubscribeFromDeps() { this.signal.removeSubscriber(this); }
     

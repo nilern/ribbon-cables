@@ -260,6 +260,21 @@ describe('testing `lift`', () => {
         expect(change[0]).toBe(0);
         expect(change[1]).toBe('cooked');
     });
+    
+    test('first subscribe (re)init', () => {
+        const mealS = sig.source(eq, 'raw');
+        const mealZ = lift(mealS);
+        
+        mealS.reset('cooked');
+        
+        mealZ.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (_) => {},
+            onSubstitute: (_, _1) => {}
+        });
+        
+        expect(mealZ.at(0)).toBe('cooked');
+    });
 });
 
 describe('testing `map`', () => {
