@@ -257,6 +257,7 @@ describe('testing `lift`', () => {
         mealS.reset('cooked');
         
         expect(mealZ.at(0)).toBe('cooked');
+        expect(mealZ.reduce((acc, meal) => acc + meal, '')).toBe('cooked');
         expect(change[0]).toBe(0);
         expect(change[1]).toBe('cooked');
     });

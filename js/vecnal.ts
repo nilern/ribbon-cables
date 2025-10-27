@@ -924,10 +924,15 @@ class SingleElementVecnal<T> extends SubscribingSubscribeableVecnal<T>
     atOr(i: number, defaultValue: T): T {
         if (i !== 0) { return defaultValue; }
         
+        if (this.subscribers.size === 0) { return this.signal.ref(); }
+        
         return this.v;
     }
     
-    reduce<U>(f: (acc: U, v: T) => U, acc: U): U { return f(acc, this.v); }
+    reduce<U>(f: (acc: U, v: T) => U, acc: U): U {
+        const v = this.subscribers.size === 0 ? this.signal.ref() : this.v;
+        return f(acc, v);
+    }
     
     subscribeToDeps() {
         this.signal.addSubscriber(this);
