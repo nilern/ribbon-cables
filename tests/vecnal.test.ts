@@ -581,6 +581,24 @@ describe('testing `concat`', () => {
         expect(catedS.at(9)).toBe(undefined);
         expect(catedS.reduce((acc, c) => acc + c, '')).toBe('oncaenate');
     });
+    
+    test('first subscribe (re)init', () => {
+        const conS = source(eq, ['c', 'o', 'n']);
+        const catS = source(eq, ['c', 'a', 't']);
+        const eS = source(eq, ['e']);
+        const nateS = source(eq, ['n', 'a', 't', 'e']);
+        const catedS = concat(conS, catS, eS, nateS);
+        
+        conS.setAt(0, 'C');
+        
+        catedS.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (_) => {},
+            onSubstitute: (_, _1) => {}
+        });
+        
+        expect(catedS.at(0)).toBe('C');
+    });
 });
 
 describe('testing `reverse`', () => {

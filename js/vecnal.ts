@@ -805,7 +805,10 @@ class ConcatVecnal<T> extends SubscribingSubscribeableVecnal<T> {
         {
             let offset = 0;
             this.deps.forEach((dep, i) => {
-                dep.reduce((acc, v) => this.vs.push(v), 0);
+                dep.reduce((vs, v) => {
+                    vs.push(v);
+                    return vs;
+                }, this.vs);
                 
                 this.offsets.push(offset);
                 offset += dep.size();
@@ -867,6 +870,18 @@ class ConcatVecnal<T> extends SubscribingSubscribeableVecnal<T> {
     }
     
     subscribeToDeps() {
+        this.vs.length = 0;
+        this.offsets.length = 0;
+        this.deps.reduce((offset, dep) => {
+            dep.reduce((vs, v) => {
+                vs.push(v);
+                return vs;
+            }, this.vs);
+            
+            this.offsets.push(offset);
+            return offset + dep.size();
+        }, 0);
+        
         this.deps.forEach((dep, i) => dep.addISubscriber(this.depSubscribers[i]));
     }
     
