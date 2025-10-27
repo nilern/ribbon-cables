@@ -584,7 +584,22 @@ class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
         return this.vs[i];
     }
     
-    subscribeToDeps() { this.input.addISubscriber(this); }
+    subscribeToDeps() {
+        this.vs.length = 0;
+        this.indexMapping.length = 0;
+        const len = this.input.size();
+        for (let i = 0; i < len; ++i) {
+            const v = this.input.at(i)!;
+            if (this.f(v)) {
+                this.vs.push(v);
+                this.indexMapping[i] = this.vs.length - 1;
+            } else {
+                this.indexMapping[i] = NO_INDEX;
+            }
+        }
+    
+        this.input.addISubscriber(this);
+    }
     
     unsubscribeFromDeps() { this.input.removeISubscriber(this); }
     

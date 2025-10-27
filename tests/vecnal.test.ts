@@ -456,6 +456,21 @@ describe('testing `filter`', () => {
         expect(oddS.size()).toBe(2);
         expect(change).toBe(noChange);
     });
+    
+    test('first subscribe (re)init', () => {
+        const naturalS = source(eq, [0, 1, 2, 3, 4, 5, 6]);
+        const oddS = naturalS.filter((n) => n % 2 === 1);
+        
+        naturalS.setAt(3, 23);
+        
+        oddS.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (_) => {},
+            onSubstitute: (_, _1) => {}
+        });
+        
+        expect(oddS.at(1)).toBe(23);
+    });
 });
 
 describe('testing `concat`', () => {
