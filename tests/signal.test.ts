@@ -69,6 +69,17 @@ describe('testing `map`', () => {
         expect(lengthS.ref()).toBe(9);
         expect(notified).toBeFalsy();
     });
+    
+    test('first subscribe (re)init', () => {
+        const nameS = source(eq, 'Sigurd');
+        const lengthS = nameS.map<number>(eq, (str) => str.length);
+        
+        nameS.reset('Siegfried');
+        
+        lengthS.addSubscriber({onChange: (_) => {}});
+        
+        expect(lengthS.ref()).toBe(9);
+    });
 });
 
 describe('testing `map2`', () => {

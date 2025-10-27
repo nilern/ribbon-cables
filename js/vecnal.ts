@@ -933,6 +933,7 @@ class ReducedSignal<U, T> extends CheckingSubscribingSubscribeableSignal<U>
     }
     
     subscribeToDeps() {
+        this.v = this.inputColl.reduce(this.f, this.inputAcc.ref());
         this.inputAcc.addSubscriber(this);
         this.inputColl.addISubscriber(this);
     }

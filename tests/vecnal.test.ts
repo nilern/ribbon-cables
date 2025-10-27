@@ -850,6 +850,19 @@ describe('testing `reduceS`', () => {
         expect(factS.ref()).toBe(24);
         expect(change).toBe(noChange);
     });
+    
+    test('first subscribe (re)init', () => {
+        const kS = sig.source(eq, 1);
+        const natS = stable([1, 2, 3, 4, 5]);
+        const factS =
+            natS.reduceS<number>(eq, (acc, n) => Math.abs(acc) * Math.abs(n), kS);
+        
+        kS.reset(3);
+        
+        factS.addSubscriber({onChange: (_) => {}});
+        
+        expect(factS.ref()).toBe(360);
+    });
 });
 
 describe('testing `imux`', () => {
