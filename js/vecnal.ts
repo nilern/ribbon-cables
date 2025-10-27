@@ -448,13 +448,13 @@ class MappedVecnal<U, T> extends CheckingSubscribingSubscribeableVecnal<U>
     }
     
     subscribeToDeps() {
+        this.input.addISubscriber(this);
+        
         this.vs.length = 0;
         this.input.reduce<typeof this.vs>((vs, v) => {
             vs.push(this.f(v));
             return vs;
         }, this.vs);
-        
-        this.input.addISubscriber(this);
     }
     
     unsubscribeFromDeps() { this.input.removeISubscriber(this); }
@@ -585,6 +585,8 @@ class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
     }
     
     subscribeToDeps() {
+        this.input.addISubscriber(this);
+        
         this.vs.length = 0;
         this.indexMapping.length = 0;
         const len = this.input.size();
@@ -597,8 +599,6 @@ class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
                 this.indexMapping[i] = NO_INDEX;
             }
         }
-    
-        this.input.addISubscriber(this);
     }
     
     unsubscribeFromDeps() { this.input.removeISubscriber(this); }
@@ -870,6 +870,8 @@ class ConcatVecnal<T> extends SubscribingSubscribeableVecnal<T> {
     }
     
     subscribeToDeps() {
+        this.deps.forEach((dep, i) => dep.addISubscriber(this.depSubscribers[i]));
+        
         this.vs.length = 0;
         this.offsets.length = 0;
         this.deps.reduce((offset, dep) => {
@@ -881,8 +883,6 @@ class ConcatVecnal<T> extends SubscribingSubscribeableVecnal<T> {
             this.offsets.push(offset);
             return offset + dep.size();
         }, 0);
-        
-        this.deps.forEach((dep, i) => dep.addISubscriber(this.depSubscribers[i]));
     }
     
     unsubscribeFromDeps() {
@@ -971,9 +971,10 @@ class ReducedSignal<U, T> extends CheckingSubscribingSubscribeableSignal<U>
     }
     
     subscribeToDeps() {
-        this.v = this.inputColl.reduce(this.f, this.inputAcc.ref());
         this.inputAcc.addSubscriber(this);
         this.inputColl.addISubscriber(this);
+        
+        this.v = this.inputColl.reduce(this.f, this.inputAcc.ref());
     }
     
     unsubscribeFromDeps() {
