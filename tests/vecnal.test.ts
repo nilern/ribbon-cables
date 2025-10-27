@@ -338,6 +338,21 @@ describe('testing `map`', () => {
         expect(alphabetS.at(1)).toBe('c');
         expect(changeIndex).toBe(1);
     });
+    
+    test('first subscribe (re)init', () => {
+        const alphabetS = source(eq, ['a', 'b', 'c']);
+        const capitalS = alphabetS.map<string>(eq, (c) => c.toUpperCase());
+        
+        alphabetS.setAt(0, 'b');
+        
+        capitalS.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (_) => {},
+            onSubstitute: (_, _1) => {}
+        });
+        
+        expect(capitalS.at(0)).toBe('B');
+    });
 });
 
 describe('testing `filter`', () => {

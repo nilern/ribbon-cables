@@ -447,7 +447,15 @@ class MappedVecnal<U, T> extends CheckingSubscribingSubscribeableVecnal<U>
         return this.vs.reduce(f, acc);
     }
     
-    subscribeToDeps() { this.input.addISubscriber(this); }
+    subscribeToDeps() {
+        this.vs.length = 0;
+        this.input.reduce<typeof this.vs>((vs, v) => {
+            vs.push(this.f(v));
+            return vs;
+        }, this.vs);
+        
+        this.input.addISubscriber(this);
+    }
     
     unsubscribeFromDeps() { this.input.removeISubscriber(this); }
     
