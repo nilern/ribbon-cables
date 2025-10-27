@@ -202,6 +202,21 @@ describe('testing `slice`', () => {
         
         expect(changes).toEqual([]);
     });
+    
+    test('first subscribe (re)init', () => {
+        const natS = vec.source(eq, [0, 1, 2, 3, 4, 5, 6, 7]);
+        const sliceS = natS.slice(2, 5);
+        
+        natS.setAt(3, 42);
+        
+        sliceS.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (_) => {},
+            onSubstitute: (_, _1) => {}
+        });
+        
+        expect(sliceS.at(1)).toBe(42);
+    });
 });
 
 describe('testing `empty`', () => {
