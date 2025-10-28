@@ -1462,7 +1462,15 @@ class ImuxVecnal<T> extends SubscribingSubscribeableVecnal<T>
         }
     }
     
-    subscribeToDeps() { this.input.addSubscriber(this); }
+    subscribeToDeps() {
+        this.input.addSubscriber(this);
+        
+        this.vs.length = 0;
+        this.input.ref().reduce((builder, v) => {
+            builder.push(v);
+            return builder;
+        }, this.vs);
+    }
     
     unsubscribeFromDeps() { this.input.removeSubscriber(this); }
     

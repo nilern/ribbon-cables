@@ -1078,5 +1078,20 @@ describe('testing `imux`', () => {
         
         expect(changeIndex).toBe(1);
     });
+    
+    test('first subscribe (re)init', () => {
+        const naturalS = sig.source(eq, new ImmArrayAdapter([1, 2, 3]));
+        const naturalZ = imux(eq, naturalS);
+        
+        naturalS.reset(new ImmArrayAdapter([1, 4, 3]));
+        
+        naturalZ.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (_) => {},
+            onSubstitute: (_, _1) => {}
+        });
+        
+        expect(naturalZ.at(1)).toBe(4);
+    });
 });
 
