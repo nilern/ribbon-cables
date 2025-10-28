@@ -841,6 +841,22 @@ describe('testing `sort`', () => {
         expect(sortedUserS.at(2).username).toBe("Jane Doe");
         expect(sortedUserS.at(2).id).toBe(4);
     });
+    
+    test('first subscribe (re)init', () => {
+        const vS = source(eq, [7, 2, 9, 4, 1, 18, 14, 19, 12]);
+        const sortedS = vS.sort((x, y) => x - y);
+        
+        vS.setAt(1, 5);
+        
+        sortedS.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (_) => {},
+            onSubstitute: (_, _1) => {}
+        });
+        
+        expect(sortedS.at(1)).toBe(4);
+        expect(sortedS.at(2)).toBe(5);
+    });
 });
 
 describe('testing `reduceS`', () => {

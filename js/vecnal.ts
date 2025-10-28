@@ -1327,7 +1327,11 @@ class SortedVecnal<T> extends SubscribingSubscribeableVecnal<T>
         return this.vs.reduce(f, acc);
     }
     
-    subscribeToDeps() { this.input.addISubscriber(this); }
+    subscribeToDeps() {
+        this.input.addISubscriber(this);
+        
+        this.reInit();
+    }
     
     unsubscribeFromDeps() { this.input.removeISubscriber(this); }
     
