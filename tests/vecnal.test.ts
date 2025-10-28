@@ -688,6 +688,21 @@ describe('testing `reverse`', () => {
         
         expect(changeIndex).toBe(1);
     });
+    
+    test('first subscribe (re)init', () => {
+        const vS = source(eq, [0, 1, 2, 3]);
+        const revS = vS.reverse();
+        
+        vS.setAt(2, 5);
+        
+        revS.addISubscriber({
+            onInsert: (_, _1) => {},
+            onRemove: (_) => {},
+            onSubstitute: (_, _1) => {}
+        });
+        
+        expect(revS.at(1)).toBe(5);
+    });
 });
 
 describe('testing `sort`', () => {

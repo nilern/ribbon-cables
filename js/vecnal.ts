@@ -1071,7 +1071,15 @@ class ReversedVecnal<T> extends SubscribingSubscribeableVecnal<T>
         return this.vs.reduce(f, acc);
     }
     
-    subscribeToDeps() { this.input.addISubscriber(this); }
+    subscribeToDeps() {
+        this.input.addISubscriber(this);
+        
+        const len = this.vs.length = this.input.size();
+        this.input.reduce((i, v) => {
+            this.vs[i] = v;
+            return i - 1;
+        }, len - 1);
+    }
     
     unsubscribeFromDeps() { this.input.removeISubscriber(this); }
     
