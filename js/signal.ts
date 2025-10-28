@@ -9,10 +9,6 @@ export {
 
 import type {Deref, Reset} from "./prelude.js";
 
-// OPTIMIZE: Why even bother with init in constructors when e.g. `this.vs` is ignored
-// anyway until subscribers appear?
-// FIXME: Actually we need to reinit on fist subscriber for correctness anyway!
-
 interface Subscriber<T> {
     onChange: (v: T) => void; // TODO: Already reject non-changes here
 }
@@ -173,7 +169,7 @@ class MappedSignal<U, T extends Signal<any>[]>
 {
     private readonly deps: T;
     private readonly depSubscribers: Subscriber<any>[] = [];
-    private v: U;
+    private v: U | undefined = undefined;
     
     constructor(
         equals: (x: U, y: U) => boolean,
@@ -186,14 +182,12 @@ class MappedSignal<U, T extends Signal<any>[]>
         
         for (const dep of deps) {
             this.depSubscribers.push({onChange: (_: any) => {
-                const oldVal = this.v;
+                const oldVal = this.v!;
                 const newVal = this.f.apply(undefined, this.deps.map((dep) => dep.ref()));
                 this.v = newVal;
                 this.notify(oldVal, newVal);
             }})
         }
-    
-        this.v = f.apply(undefined, deps.map((dep) => dep.ref()));
     }
     
     ref(): U {
@@ -205,7 +199,7 @@ class MappedSignal<U, T extends Signal<any>[]>
             // would result from eagerly subscribing in ctor...
         }
         
-        return this.v;
+        return this.v!;
     }
     
     subscribeToDeps() {

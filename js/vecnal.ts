@@ -381,7 +381,7 @@ class SliceVecnal<T> extends SubscribingSubscribeableVecnal<T>
 class MappedVecnal<U, T> extends CheckingSubscribingSubscribeableVecnal<U>
     implements IndexedSubscriber<T>
 {
-    private readonly vs: U[]; // OPTIMIZE: RRB vector
+    private readonly vs: U[] = []; // OPTIMIZE: RRB vector
 
     constructor(
         equals: (x: U, y: U) => boolean,
@@ -389,11 +389,6 @@ class MappedVecnal<U, T> extends CheckingSubscribingSubscribeableVecnal<U>
         private readonly input: Vecnal<T>
     ) {
         super(equals);
-        
-        this.vs = input.reduce<typeof this.vs>((vs, v) => {
-            vs.push(f(v));
-            return vs;
-        }, []);
     }
     
     size(): number {
@@ -487,27 +482,14 @@ const NO_INDEX = -1;
 class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
     implements IndexedSubscriber<T>
 {
-    private readonly vs: T[]; // OPTIMIZE: RRB vector
-    private readonly indexMapping: number[];
+    private readonly vs: T[] = []; // OPTIMIZE: RRB vector
+    private readonly indexMapping: number[] = [];
 
     constructor(
         private readonly f: (v: T) => boolean,
         private readonly input: Vecnal<T>
     ) {
         super();
-        
-        this.vs = [];
-        this.indexMapping = [];
-        const len = input.size();
-        for (let i = 0; i < len; ++i) {
-            const v = input.at(i)!;
-            if (f(v)) {
-                this.vs.push(v);
-                this.indexMapping[i] = this.vs.length - 1;
-            } else {
-                this.indexMapping[i] = NO_INDEX;
-            }
-        }
     }
     
     size(): number {
@@ -790,8 +772,8 @@ class ConcatVecnalDepSubscriber<T> implements IndexedSubscriber<T> {
 class ConcatVecnal<T> extends SubscribingSubscribeableVecnal<T> {
     // Some members need to be public for `ConcatVecnalDepSubscriber`.
     // This class itself is not a public module member though so it is not too bad:
-    public readonly vs: T[]; // OPTIMIZE: RRB vector
-    public readonly offsets: number[];
+    public readonly vs: T[] = []; // OPTIMIZE: RRB vector
+    public readonly offsets: number[] = [];
     private readonly depSubscribers: IndexedSubscriber<T>[];
     
     constructor(
@@ -799,23 +781,10 @@ class ConcatVecnal<T> extends SubscribingSubscribeableVecnal<T> {
     ) {
         super();
         
-        this.vs = [];
-        this.offsets = [];
         this.depSubscribers = [];
-        {
-            let offset = 0;
-            this.deps.forEach((dep, i) => {
-                dep.reduce((vs, v) => {
-                    vs.push(v);
-                    return vs;
-                }, this.vs);
-                
-                this.offsets.push(offset);
-                offset += dep.size();
-                
-                this.depSubscribers.push(new ConcatVecnalDepSubscriber(this, i));
-            });
-        }
+        this.deps.forEach((dep, i) => {
+            this.depSubscribers.push(new ConcatVecnalDepSubscriber(this, i));
+        });
     }
     
     size(): number {
@@ -909,14 +878,12 @@ function empty<T>(): Vecnal<T> { return EmptyVecnal.INSTANCE as EmptyVecnal<T>; 
 class SingleElementVecnal<T> extends SubscribingSubscribeableVecnal<T>
     implements Subscriber<T>
 {
-    private v: T;
+    private v: T | undefined = undefined;
     
     constructor(
         private readonly signal: Signal<T>
     ) {
         super();
-        
-        this.v = signal.ref();
     }
     
     size(): number { return 1; }
@@ -926,11 +893,11 @@ class SingleElementVecnal<T> extends SubscribingSubscribeableVecnal<T>
         
         if (this.subscribers.size === 0) { return this.signal.ref(); }
         
-        return this.v;
+        return this.v!;
     }
     
     reduce<U>(f: (acc: U, v: T) => U, acc: U): U {
-        const v = this.subscribers.size === 0 ? this.signal.ref() : this.v;
+        const v = this.subscribers.size === 0 ? this.signal.ref() : this.v!;
         return f(acc, v);
     }
     
@@ -943,7 +910,7 @@ class SingleElementVecnal<T> extends SubscribingSubscribeableVecnal<T>
     unsubscribeFromDeps() { this.signal.removeSubscriber(this); }
     
     onChange(newVal: T) {
-        const oldVal = this.v;
+        const oldVal = this.v!;
         this.v = newVal;
         this.notifySubstitute(0, oldVal, newVal);
     }
@@ -954,7 +921,7 @@ function lift<T>(signal: Signal<T>): Vecnal<T> { return new SingleElementVecnal(
 class ReducedSignal<U, T> extends CheckingSubscribingSubscribeableSignal<U>
     implements Subscriber<U>, IndexedSubscriber<T>
 {
-    private v: U;
+    private v: U | undefined = undefined;
 
     constructor(
         equals: (x: U, y: U) => boolean,
@@ -963,8 +930,6 @@ class ReducedSignal<U, T> extends CheckingSubscribingSubscribeableSignal<U>
         private readonly inputColl: Vecnal<T>
     ) {
         super(equals);
-        
-        this.v = inputColl.reduce(f, inputAcc.ref());
     }
     
     ref(): U {
@@ -976,7 +941,7 @@ class ReducedSignal<U, T> extends CheckingSubscribingSubscribeableSignal<U>
             // would result from eagerly subscribing in ctor...
         }
         
-        return this.v;
+        return this.v!;
     }
     
     subscribeToDeps() {
@@ -992,7 +957,7 @@ class ReducedSignal<U, T> extends CheckingSubscribingSubscribeableSignal<U>
     }
     
     private onCollChange() {
-        const oldVal = this.v;
+        const oldVal = this.v!;
         const newVal = this.inputColl.reduce(this.f, this.inputAcc.ref());
         this.v = newVal;
         this.notify(oldVal, newVal);
@@ -1005,7 +970,7 @@ class ReducedSignal<U, T> extends CheckingSubscribingSubscribeableSignal<U>
     onSubstitute(_: number, _1: T) { this.onCollChange(); }
     
     onChange(newAcc: U) {
-        const oldVal = this.v;
+        const oldVal = this.v!;
         const newVal = this.inputColl.reduce(this.f, newAcc);
         this.v = newVal;
         this.notify(oldVal, newVal);
@@ -1025,18 +990,12 @@ class ThunkSignal<T> extends NonNotifyingSignal<T> {
 class ReversedVecnal<T> extends SubscribingSubscribeableVecnal<T>
     implements IndexedSubscriber<T>
 {
-    private readonly vs = [] as T[];
+    private readonly vs: T[] = [];
     
     constructor(
         private readonly input: Vecnal<T>
     ) {
         super();
-        
-        const len = this.vs.length = input.size();
-        input.reduce((i, v) => {
-            this.vs[i] = v;
-            return i - 1;
-        }, len - 1);
     }
     
     size(): number {
@@ -1109,17 +1068,15 @@ class ReversedVecnal<T> extends SubscribingSubscribeableVecnal<T>
 class SortedVecnal<T> extends SubscribingSubscribeableVecnal<T>
     implements IndexedSubscriber<T>
 {
-    private readonly vs = [] as T[];
-    private readonly indexMapping = [] as number[];
-    private readonly revIndexMapping = [] as number[];
+    private readonly vs: T[] = [];
+    private readonly indexMapping: number[] = [];
+    private readonly revIndexMapping: number[] = [];
 
     constructor(
         private readonly input: Vecnal<T>,
         private readonly compare: (x: T, y: T) => number
     ) {
         super();
-        
-        this.reInit();
     }
     
     // OPTIMIZE: Replace with Powersort:
@@ -1384,18 +1341,13 @@ type ImuxableVal<T> = Reducible<T> & Sized & Indexed<T>;
 class ImuxVecnal<T> extends SubscribingSubscribeableVecnal<T>
     implements Subscriber<ImuxableVal<T>>
 {
-    private readonly vs: T[];
+    private readonly vs: T[] = [];
     
     constructor(
         private readonly equals: (x: T, y: T) => boolean,
         private readonly input: Signal<Reducible<T> & Sized & Indexed<T>>
     ) {
         super();
-        
-        this.vs = input.ref().reduce<T[]>((builder, v) => {
-            builder.push(v);
-            return builder;
-        }, []);
     }
     
     private patch(newVs: Sized & Indexed<T>, edits: diff.EditScript) {
