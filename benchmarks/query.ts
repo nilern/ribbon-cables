@@ -137,6 +137,7 @@ suite.add('Update user in page signal of bonus user fullnames', () => {
     userS.reset(newUsers);
     
     theBonusUserFullnameS.removeSubscriber(subscriber);
+    userS.reset(initialUsers);
     updateeIndex = (updateeIndex + 17) % userS.ref().length;
 });
 suite.add('Update user in page vecnal of bonus user fullnames', () => {
@@ -152,6 +153,7 @@ suite.add('Update user in page vecnal of bonus user fullnames', () => {
     userS.reset(newUsers);
     
     theBonusUserFullnameZ.removeISubscriber(subscriber);
+    userS.reset(initialUsers);
     updateeIndex = (updateeIndex + 17) % userS.ref().length;
 });
 
@@ -162,17 +164,19 @@ from users
 where bonusProgram;
 ```
 */
-suite.add('Initialize total bonus points via signals', () => {
-    userS
+
+function totalBonusPointsSigd(userS: Signal<readonly User[]>): Signal<number> {
+    return userS
         .map<readonly User[]>(eq, (users) => users.filter((user) => user.bonusProgram))
         .map<readonly number[]>(eq, (users) => users.map((user) => user.bonusPoints))
         .map(eq, (usersPoints) => usersPoints.reduce(
             (total, userPoints) => total + userPoints,
             0
         ));
-});
-suite.add('Initialize total bonus points via vecnals', () => {
-    userZ
+}
+
+function totalBonusPointsVecd(userZ: Vecnal<User>): Signal<number> {
+    return userZ
         .filter((user) => user.bonusProgram)
         .map<number>(eq, (user) => user.bonusPoints)
         .reduceS(
@@ -180,6 +184,43 @@ suite.add('Initialize total bonus points via vecnals', () => {
             (total, userPoints) => total + userPoints,
             sig.stable(0)
         );
+}
+
+suite.add('Initialize total bonus points via signals', () => {
+    totalBonusPointsSigd(userS);
+});
+suite.add('Initialize total bonus points via vecnals', () => {
+    totalBonusPointsVecd(userZ);
+});
+
+const theTotalBonusPointsSigd = totalBonusPointsSigd(userS);
+const theTotalBonusPointsVecd = totalBonusPointsVecd(userZ);
+let sumUpdateeIndex = 0;
+
+suite.add('Update user in total bonus points via signals', () => {
+    const subscriber: Subscriber<number> = {onChange: (_) => {}};
+    theTotalBonusPointsSigd.addSubscriber(subscriber);
+    
+    const newUsers = [...userS.ref()];
+    newUsers[updateeIndex] = newUsers[updateeIndex].withFirstname('Marie');
+    userS.reset(newUsers);
+    
+    theTotalBonusPointsSigd.removeSubscriber(subscriber);
+    userS.reset(initialUsers);
+    sumUpdateeIndex = (sumUpdateeIndex + 17) % userS.ref().length;
+});
+
+suite.add('Update user in total bonus points via vecnals', () => {
+    const subscriber: Subscriber<number> = {onChange: (_) => {}};
+    theTotalBonusPointsVecd.addSubscriber(subscriber);
+    
+    const newUsers = [...userS.ref()];
+    newUsers[updateeIndex] = newUsers[updateeIndex].withFirstname('Marie');
+    userS.reset(newUsers);
+    
+    theTotalBonusPointsVecd.removeSubscriber(subscriber);
+    userS.reset(initialUsers);
+    sumUpdateeIndex = (sumUpdateeIndex + 17) % userS.ref().length;
 });
 
 suite.run()
