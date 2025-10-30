@@ -56,7 +56,7 @@ abstract class NonNotifyingSignal<T> extends Signal<T> {
 }
 
 abstract class SubscribeableSignal<T> extends Signal<T> {
-    protected readonly subscribers = new Set<Subscriber<T>>(); // TODO: `Set<WeakRef<`
+    protected readonly subscribers = new Set<Subscriber<T>>();
     
     addSubscriber(subscriber: Subscriber<T>) {
         this.subscribers.add(subscriber);

@@ -127,7 +127,7 @@ abstract class NonNotifyingVecnal<T> extends Vecnal<T> {
 }
 
 abstract class SubscribeableVecnal<T> extends Vecnal<T> {
-    protected readonly subscribers = new Set<IndexedSubscriber<T>>(); // TODO: `Set<WeakRef<`
+    protected readonly subscribers = new Set<IndexedSubscriber<T>>();
     
     addISubscriber(subscriber: IndexedSubscriber<T>) {
         this.subscribers.add(subscriber);
@@ -239,7 +239,7 @@ class StableVecnal<T> extends NonNotifyingVecnal<T> {
 function stable<T>(vs: Reducible<T>): Vecnal<T> { return new StableVecnal(vs); }
 
 class SourceVecnal<T> extends CheckingSubscribeableVecnal<T> implements Spliceable<T> {
-    private readonly vs: T[]; // OPTIMIZE: RRB vector
+    private readonly vs: T[];
     
     constructor(
         equals: (x: T, y: T) => boolean,
@@ -381,7 +381,7 @@ class SliceVecnal<T> extends SubscribingSubscribeableVecnal<T>
 class MappedVecnal<U, T> extends CheckingSubscribingSubscribeableVecnal<U>
     implements IndexedSubscriber<T>
 {
-    private readonly vs: U[] = []; // OPTIMIZE: RRB vector
+    private readonly vs: U[] = [];
 
     constructor(
         equals: (x: U, y: U) => boolean,
@@ -471,7 +471,7 @@ const NO_INDEX = -1;
 class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
     implements IndexedSubscriber<T>
 {
-    private readonly vs: T[] = []; // OPTIMIZE: RRB vector
+    private readonly vs: T[] = [];
     private readonly indexMapping: number[] = [];
 
     constructor(
@@ -736,7 +736,7 @@ class ConcatVecnalDepSubscriber<T> implements IndexedSubscriber<T> {
 class ConcatVecnal<T> extends SubscribingSubscribeableVecnal<T> {
     // Some members need to be public for `ConcatVecnalDepSubscriber`.
     // This class itself is not a public module member though so it is not too bad:
-    public readonly vs: T[] = []; // OPTIMIZE: RRB vector
+    public readonly vs: T[] = [];
     public readonly offsets: number[] = [];
     private readonly depSubscribers: IndexedSubscriber<T>[];
     

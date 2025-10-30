@@ -105,7 +105,7 @@ abstract class Fragment implements IndexedObservable<Node> {
 
 // TODO: Use mixin for `MapFragment.prototype.subscribers`:
 class MapFragment<T> extends Fragment implements IndexedSubscriber<T> {
-    private readonly subscribers = new Set<IndexedSubscriber<Node>>(); // TODO: `Set<WeakRef<`
+    private readonly subscribers = new Set<IndexedSubscriber<Node>>();
     private readonly signals = [] as ChildSignal<T>[];
     
     constructor(
