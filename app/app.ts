@@ -1,14 +1,14 @@
 export {model, controller};
 
-import type {Reset} from "./prelude.js";
-import {ImmArrayAdapter, eq, str} from "./prelude.js";
-import type {Signal} from "./signal.js";
-import * as signal from "./signal.js";
-import type {Vecnal} from "./vecnal.js";
-import * as vecnal from "./vecnal.js";
-import * as dom from "./dom.js";
-import type {NodeFactory, Framer} from "./dom.js";
-import {NodeManager} from "./dom.js";
+import type {Reset} from "../js/prelude.js";
+import {ImmArrayAdapter, eq, str} from "../js/prelude.js";
+import type {Signal} from "../js/signal.js";
+import * as signal from "../js/signal.js";
+import type {Vecnal} from "../js/vecnal.js";
+import * as vecnal from "../js/vecnal.js";
+import * as dom from "../js/dom.js";
+import type {NodeFactory, Framer} from "../js/dom.js";
+import {NodeManager} from "../js/dom.js";
 
 type Routes = {
     [k: string]: () => void
