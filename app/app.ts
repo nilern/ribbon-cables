@@ -10,6 +10,16 @@ import * as dom from "../js/dom.js";
 import type {NodeFactory, Framer} from "../js/dom.js";
 import {NodeManager} from "../js/dom.js";
 
+function count<T>(vs: Iterable<T>, pred: (v: T) => boolean): number {
+    let n = 0;
+
+    for (const v of vs) {
+        if (pred(v)) { ++n; }
+    }
+    
+    return n;
+}
+
 type Routes = {
     [k: string]: () => void
 };
@@ -361,7 +371,7 @@ function todoFilter(nodes: NodeFactory, label: string, path: string,
              label));
 }
 
-function todosFooter(nodes: NodeFactory, ctrl: Ctrl, todoCount: Signal<number>,
+function todosFooter(nodes: NodeFactory, ctrl: Ctrl, incompleteTodoCount: Signal<number>,
     filterS: Signal<Filter>
 ): Node {
     function onClearCompleteds(_: Event) {
@@ -374,7 +384,7 @@ function todosFooter(nodes: NodeFactory, ctrl: Ctrl, todoCount: Signal<number>,
     
     return nodes.el("footer", {"class": "footer"},
         nodes.el("span", {"class": "todo-count"},
-            nodes.el("strong", {}, todoCount.map(eq, str)), " items left"),
+            nodes.el("strong", {}, incompleteTodoCount.map(eq, str)), " items left"),
         
         nodes.el("ul", {"class": "filters"},
             todoFilter(nodes, "All", "/", allIsSelected), // TODO: Interaction
@@ -392,14 +402,15 @@ function createUI(nodes: NodeFactory & Framer, ctrl: Ctrl, todoS: Signal<readonl
     const visibleTodoS: Signal<ImmArrayAdapter<Todo>> = todoS.map2(eq,
         (todos, filter) => new ImmArrayAdapter(todos.filter(filterFn(filter))), // OPTIMIZE
         filterS);
-    const todoCount: Signal<number> = todoS.map(eq, (todos) => todos.length);
+    const incompleteTodoCount: Signal<number> =
+        todoS.map(eq, (todos) => count(todos, (todo) => !todo.isComplete));
     
     return nodes.el("section", {"class": "todoapp"},
         todosHeader(nodes, ctrl),
                          
         todoList(nodes, ctrl, vecnal.imux(eq, visibleTodoS)),
                 
-        todosFooter(nodes, ctrl, todoCount, filterS));
+        todosFooter(nodes, ctrl, incompleteTodoCount, filterS));
 }
 
 // TODO: Do not hammer `filterS` directly from here:
