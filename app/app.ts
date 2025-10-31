@@ -79,6 +79,13 @@ class Model {
         );
     }
     
+    withAllCompleted(areCompleted: boolean): Model {
+        return new Model(
+            this.nextId,
+            this.todos.map((todo) => todo.withCompletion(areCompleted))
+        );
+    }
+    
     withoutCompleteds(): Model {
         return new Model(
             this.nextId,
@@ -137,6 +144,12 @@ class Ctrl {
     clearTodo(id: number) {
         this.framer.frame(() =>
             this.model.reset(this.model.ref().withoutTodo(id))
+        );
+    }
+    
+    toggleAll(areCompleted: boolean) {
+        this.framer.frame(() =>
+            this.model.reset(this.model.ref().withAllCompleted(areCompleted))
         );
     }
     
@@ -279,8 +292,26 @@ function item(nodes: NodeFactory & Framer, ctrl: Ctrl, todoS: Signal<Todo>): Nod
 }
 
 function todoList(nodes: NodeFactory & Framer, ctrl: Ctrl, todoS: Vecnal<Todo>): Node {
+    const allAreCompleteS: Signal<boolean> = todoS.reduceS(
+        eq,
+        (allAreComplete, todo) => allAreComplete && todo.isComplete,
+        signal.stable(true)
+    );
+
     return nodes.el("section", {"class": "main"},
-        nodes.el("input", {"id": "toggle-all", "class": "toggle-all", "type": "checkbox"}),
+        nodes.el("input", {
+            "id": "toggle-all",
+            "class": "toggle-all",
+            "type": "checkbox",
+            "checked": allAreCompleteS.map(eq, (allAreComplete) => {
+                return allAreComplete ? "true" : undefined;
+            }),
+           "onchange": (ev: Event) => {
+                const event = ev as InputEvent;
+                const input = event.target as HTMLInputElement;
+                ctrl.toggleAll(input.checked);
+            }
+        }),
         nodes.el("label", {"for": "toggle-all"}, "Mark all as complete"),
         
         nodes.el("ul", {"class": "todo-list"},
