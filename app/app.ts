@@ -228,10 +228,16 @@ class ItemEditCtrl {
     }
 }
 
-// TODO: Interaction:
 function itemEditor(nodes: NodeFactory, ctrl: ItemEditCtrl, isEditingS: Signal<boolean>, 
     tmpTextS: Signal<string>
 ): Node {
+    function handleKey(e: Event) {
+        const event = e as KeyboardEvent;
+        if (event.key === "Enter") {
+            ctrl.finish();
+        }
+    }
+    
     const displayEditS: Signal<string> =
         isEditingS.map(eq, (isEditing) => isEditing ? "inline" : "none");
 
@@ -244,6 +250,7 @@ function itemEditor(nodes: NodeFactory, ctrl: ItemEditCtrl, isEditingS: Signal<b
             const input = event.target as HTMLInputElement;
             ctrl.setText(input.value);
         },
+        "onkeydown": handleKey,
         "onblur": (_) => ctrl.finish()
     });
 }
