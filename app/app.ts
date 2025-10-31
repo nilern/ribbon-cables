@@ -212,8 +212,10 @@ function itemCheckbox(nodes: NodeFactory, isCompleteS: Signal<boolean>,
 class ItemEditCtrl {
     constructor(
         private readonly framer: Framer,
+        private readonly textS: Signal<string>,
         private readonly tmpTextS: Signal<string> & Reset<string>,
-        private readonly onFinish: (finalText: string) => void
+        private readonly onFinish: (finalText: string) => void,
+        private readonly onCancel: () => void
     ) {}
     
     init(text: string) { this.setText(text); }
@@ -226,6 +228,11 @@ class ItemEditCtrl {
         this.framer.frame(() => this.tmpTextS.reset(this.tmpTextS.ref().trim()));
         this.onFinish(this.tmpTextS.ref());
     }
+    
+    cancel() {
+        this.framer.frame(() => this.tmpTextS.reset(this.textS.ref()));
+        this.onCancel();
+    }
 }
 
 function itemEditor(nodes: NodeFactory, ctrl: ItemEditCtrl, isEditingS: Signal<boolean>, 
@@ -235,6 +242,8 @@ function itemEditor(nodes: NodeFactory, ctrl: ItemEditCtrl, isEditingS: Signal<b
         const event = e as KeyboardEvent;
         if (event.key === "Enter") {
             ctrl.finish();
+        } else if (event.key === "Escape") {
+            ctrl.cancel();
         }
     }
     
@@ -248,7 +257,9 @@ function itemEditor(nodes: NodeFactory, ctrl: ItemEditCtrl, isEditingS: Signal<b
         "onchange": (ev: Event) => {
             const event = ev as InputEvent;
             const input = event.target as HTMLInputElement;
-            ctrl.setText(input.value);
+            if (isEditingS.ref()) { // HACK?
+                ctrl.setText(input.value);
+            }
         },
         "onkeydown": handleKey,
         "onblur": (_) => ctrl.finish()
@@ -269,6 +280,10 @@ function item(nodes: NodeFactory & Framer, ctrl: Ctrl, todoS: Signal<Todo>): Nod
     
     function finishEditing(finalText: string) {
         ctrl.setText(todoS.ref().id, finalText);
+        nodes.frame(() => isEditingS.reset(false));
+    }
+    
+    function cancelEditing() {
         nodes.frame(() => isEditingS.reset(false));
     }
     
@@ -296,7 +311,8 @@ function item(nodes: NodeFactory & Framer, ctrl: Ctrl, todoS: Signal<Todo>): Nod
         );
         
     const tmpTextS = signal.source(eq, textS.ref());
-    const editCtrl = new ItemEditCtrl(nodes, tmpTextS, finishEditing);
+    const editCtrl =
+        new ItemEditCtrl(nodes, textS, tmpTextS, finishEditing, cancelEditing);
 
     return nodes.el("li", {"class": classeS},
         nodes.el("div", {"class": "view"}, 
