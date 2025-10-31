@@ -63,6 +63,10 @@ class Model {
     }
     
     withTodoText(id: number, text: string): Model {
+        if (text.length === 0) {
+            return this.withoutTodo(id);
+        }
+        
         return new Model(
             this.nextId,
             this.todos.map((todo) => todo.id !== id
