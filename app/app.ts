@@ -46,6 +46,10 @@ class Model {
     }
     
     withTodo(text: string, isComplete: boolean): Model {
+        if (text.length === 0) {
+            return this;
+        }
+    
         return new Model(
             this.nextId + 1,
             [...this.todos, new Todo(this.nextId, text, isComplete)]
