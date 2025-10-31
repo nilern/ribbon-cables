@@ -384,7 +384,10 @@ function todosFooter(nodes: NodeFactory, ctrl: Ctrl, incompleteTodoCount: Signal
     
     return nodes.el("footer", {"class": "footer"},
         nodes.el("span", {"class": "todo-count"},
-            nodes.el("strong", {}, incompleteTodoCount.map(eq, str)), " items left"),
+            nodes.el("strong", {},
+                incompleteTodoCount.map(eq, (n) =>
+                    `${n} ${n === 1 ? "item" : "items"} left`
+                ))),
         
         nodes.el("ul", {"class": "filters"},
             todoFilter(nodes, "All", "/", allIsSelected), // TODO: Interaction
