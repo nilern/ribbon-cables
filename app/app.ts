@@ -222,7 +222,10 @@ class ItemEditCtrl {
         this.framer.frame(() => this.tmpTextS.reset(text));
     }
     
-    finish() { this.onFinish(this.tmpTextS.ref()); }
+    finish() {
+        this.framer.frame(() => this.tmpTextS.reset(this.tmpTextS.ref().trim()));
+        this.onFinish(this.tmpTextS.ref());
+    }
 }
 
 // TODO: Interaction:
