@@ -4,14 +4,14 @@ export {createUI};
 import {Todo, Model} from "./model.js";
 import {Ctrl} from "./controller.js";
 
-import type {Reset} from "../js/prelude.js";
-import {ImmArrayAdapter, eq, str} from "../js/prelude.js";
-import type {Signal} from "../js/signal.js";
-import * as signal from "../js/signal.js";
-import type {Vecnal} from "../js/vecnal.js";
-import * as vecnal from "../js/vecnal.js";
-import * as dom from "../js/dom.js";
-import type {NodeFactory, Framer} from "../js/dom.js";
+import type {Reset} from "../../js/prelude.js";
+import {ImmArrayAdapter, eq, str} from "../../js/prelude.js";
+import type {Signal} from "../../js/signal.js";
+import * as signal from "../../js/signal.js";
+import type {Vecnal} from "../../js/vecnal.js";
+import * as vecnal from "../../js/vecnal.js";
+import * as dom from "../../js/dom.js";
+import type {NodeFactory, Framer} from "../../js/dom.js";
 
 function count<T>(vs: Iterable<T>, pred: (v: T) => boolean): number {
     let n = 0;
