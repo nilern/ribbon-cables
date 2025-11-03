@@ -1,6 +1,7 @@
 export {model, controller};
 
 import {Todo, Model} from "./model.js";
+import {Ctrl} from "./controller.js";
 
 import type {Reset} from "../js/prelude.js";
 import {ImmArrayAdapter, eq, str} from "../js/prelude.js";
@@ -51,52 +52,6 @@ function filterFn(filter: Filter): (todo: Todo) => boolean {
 
 // Global for REPL testing:
 const filterS: Signal<Filter> & Reset<Filter> = signal.source<Filter>(eq, "all");
-
-// TODO: Limited versions for different components:
-class Ctrl {
-    constructor(
-        private readonly framer: Framer,
-        private readonly model: Signal<Model> & Reset<Model>
-    ) {}
-    
-    // TODO: `this.model.swap(...)`:
-    
-    addTodo(text: string, isComplete = false) {
-        this.framer.frame(() =>
-            this.model.reset(this.model.ref().withTodo(text, isComplete))
-        );
-    }
-    
-    setIsComplete(id: number, isComplete: boolean) {
-        this.framer.frame(() =>
-            this.model.reset(this.model.ref().withTodoCompleted(id, isComplete))
-        );
-    }
-    
-    setText(id: number, text: string) {
-        this.framer.frame(() =>
-            this.model.reset(this.model.ref().withTodoText(id, text))
-        );
-    }
-    
-    clearTodo(id: number) {
-        this.framer.frame(() =>
-            this.model.reset(this.model.ref().withoutTodo(id))
-        );
-    }
-    
-    toggleAll(areCompleted: boolean) {
-        this.framer.frame(() =>
-            this.model.reset(this.model.ref().withAllCompleted(areCompleted))
-        );
-    }
-    
-    clearCompleteds() {
-        this.framer.frame(() =>
-            this.model.reset(this.model.ref().withoutCompleteds())
-        );
-    }
-}
 
 const nodeManager = new NodeManager(); // Global for REPL testing
 
