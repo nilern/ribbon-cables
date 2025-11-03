@@ -2,11 +2,11 @@
  * @jest-environment jsdom
  */ 
 
-import * as dom from '../js/dom';
+import * as dom from '../lib/dom';
 
-import * as sig from '../js/signal';
-import * as vec from '../js/vecnal';
-import {id, eq} from '../js/prelude';
+import * as sig from '../lib/signal';
+import * as vec from '../lib/vecnal';
+import {id, eq} from '../lib/prelude';
 
 describe('testing `forVecnal`', () => {
     test('hatchChildren()', () => {

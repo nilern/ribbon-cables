@@ -5,12 +5,12 @@ import {Ctrl} from "./controller.js";
 import type {Filter} from "./view.js";
 import {createUI} from "./view.js";
 
-import type {Reset} from "../../js/prelude.js";
-import {ImmArrayAdapter, eq, str} from "../../js/prelude.js";
-import type {Signal} from "../../js/signal.js";
-import * as signal from "../../js/signal.js";
-import * as dom from "../../js/dom.js";
-import {NodeManager} from "../../js/dom.js";
+import type {Reset} from "../../lib/prelude.js";
+import {ImmArrayAdapter, eq, str} from "../../lib/prelude.js";
+import type {Signal} from "../../lib/signal.js";
+import * as signal from "../../lib/signal.js";
+import * as dom from "../../lib/dom.js";
+import {NodeManager} from "../../lib/dom.js";
 
 type Routes = {
     [k: string]: () => void

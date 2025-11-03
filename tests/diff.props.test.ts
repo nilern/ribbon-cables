@@ -1,8 +1,8 @@
 import {test as tst, fc} from '@fast-check/jest';
 
-import * as diff from '../js/diff.js';
+import * as diff from '../lib/diff.js';
 
-import {eq} from '../js/prelude.js';
+import {eq} from '../lib/prelude.js';
 
 // HACK:
 class StringAdapter {

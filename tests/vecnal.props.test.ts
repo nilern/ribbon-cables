@@ -1,10 +1,10 @@
 import type {Arb} from 'fast-check';
 import {test as tst, fc} from '@fast-check/jest';
 
-import * as vec from '../js/vecnal.js';
+import * as vec from '../lib/vecnal.js';
 
-import * as sig from '../js/signal.js';
-import {eq, ImmArrayAdapter} from '../js/prelude.js';
+import * as sig from '../lib/signal.js';
+import {eq, ImmArrayAdapter} from '../lib/prelude.js';
 
 const maxLength = 100;
 

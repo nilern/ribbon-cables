@@ -1,6 +1,6 @@
-import {stable, source} from "../js/signal";
+import {stable, source} from "../lib/signal";
 
-import {eq} from "../js/prelude";
+import {eq} from "../lib/prelude";
 
 describe('testing `stable`', () => {
     test('ref()', () => {

@@ -5,12 +5,12 @@
 import type {Arb} from 'fast-check';
 import {test as tst, fc} from '@fast-check/jest';
 
-import * as dom from '../js/dom.js';
+import * as dom from '../lib/dom.js';
 
-import * as sig from '../js/signal.js';
-import {Signal} from '../js/signal.js';
-import * as vec from '../js/vecnal.js';
-import {eq, id} from '../js/prelude.js';
+import * as sig from '../lib/signal.js';
+import {Signal} from '../lib/signal.js';
+import * as vec from '../lib/vecnal.js';
+import {eq, id} from '../lib/prelude.js';
 
 const maxLength = 100;
 

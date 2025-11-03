@@ -1,8 +1,8 @@
-import * as vec from "../js/vecnal";
-import {stable, source, lift, concat, imux} from "../js/vecnal";
+import * as vec from "../lib/vecnal";
+import {stable, source, lift, concat, imux} from "../lib/vecnal";
 
-import * as sig from "../js/signal";
-import {eq, ImmArrayAdapter} from "../js/prelude";
+import * as sig from "../lib/signal";
+import {eq, ImmArrayAdapter} from "../lib/prelude";
 
 describe('testing `stable`', () => {
     test('Sized & Indexed<T> & Reducible<T>', () => {

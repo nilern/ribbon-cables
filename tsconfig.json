@@ -1,5 +1,5 @@
 {
-  "include": ["js/*", "app/js/*", "benchmarks/*"],
+  "include": ["lib/*", "app/js/*", "benchmarks/*"],
     
   "compilerOptions": {
     /* Visit https://aka.ms/tsconfig.json to read more about this file */

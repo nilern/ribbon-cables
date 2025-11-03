@@ -1,12 +1,12 @@
 import {Suite} from 'bench-node';
 
-import * as vec from '../js/vecnal.js';
-import {Vecnal, IndexedSubscriber} from '../js/vecnal.js';
+import * as vec from '../lib/vecnal.js';
+import {Vecnal, IndexedSubscriber} from '../lib/vecnal.js';
 
-import * as sig from '../js/signal.js';
-import {Signal, Subscriber} from '../js/signal.js';
-import type {Reset} from '../js/prelude.js';
-import {ImmArrayAdapter, eq} from '../js/prelude.js';
+import * as sig from '../lib/signal.js';
+import {Signal, Subscriber} from '../lib/signal.js';
+import type {Reset} from '../lib/prelude.js';
+import {ImmArrayAdapter, eq} from '../lib/prelude.js';
 
 const suite = new Suite();
 
