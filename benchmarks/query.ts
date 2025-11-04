@@ -117,30 +117,48 @@ function bonusUserFullnameZ(userZ: Vecnal<User>): Vecnal<string> {
         .slice(30, 40);
 }
 
-suite.add('Initialize page signal of bonus user fullnames', () => {
-    bonusUserFullnameS(userS);
+suite.add('Initialize page signal of bonus user fullnames', (timer) => {
+    timer!.start();
+    const nameS = bonusUserFullnameS(userS);
+    const subscriber: Subscriber<readonly string[]> = {onChange: (_) => {}};
+    nameS.addSubscriber(subscriber); // Force actual init
+    timer!.end();
+    
+    nameS.removeSubscriber(subscriber);
 });
-suite.add('Initialize page vecnal of bonus user fullnames', () => {
-    bonusUserFullnameZ(userZ);
+suite.add('Initialize page vecnal of bonus user fullnames', (timer) => {
+    timer!.start();
+    const nameZ = bonusUserFullnameZ(userZ);
+    const subscriber: IndexedSubscriber<string> = {
+        onInsert: (_, _1) => {},
+        onRemove: (_) => {},
+        onSubstitute: (_, _1) => {}
+    };
+    nameZ.addISubscriber(subscriber); // Force actual init
+    timer!.end();
+    
+    nameZ.removeISubscriber(subscriber);
 });
 
 const theBonusUserFullnameS = bonusUserFullnameS(userS);
 const theBonusUserFullnameZ = bonusUserFullnameZ(userZ);
 let updateeIndex = 0;
 
-suite.add('Update user in page signal of bonus user fullnames', () => {
+suite.add('Update user in page signal of bonus user fullnames', (timer) => {
     const subscriber: Subscriber<readonly string[]> = {onChange: (_) => {}};
     theBonusUserFullnameS.addSubscriber(subscriber);
     
+    timer!.start();
     const newUsers = [...userS.ref()];
     newUsers[updateeIndex] = newUsers[updateeIndex].withFirstname('Marie');
     userS.reset(newUsers);
+    timer!.end();
     
     theBonusUserFullnameS.removeSubscriber(subscriber);
     userS.reset(initialUsers);
     updateeIndex = (updateeIndex + 17) % userS.ref().length;
 });
-suite.add('Update user in page vecnal of bonus user fullnames', () => {
+suite.add('Update user in page vecnal of bonus user fullnames', (timer) => {
     const subscriber: IndexedSubscriber<string> = {
         onInsert: (_, _1) => {},
         onRemove: (_) => {},
@@ -148,9 +166,11 @@ suite.add('Update user in page vecnal of bonus user fullnames', () => {
     };
     theBonusUserFullnameZ.addISubscriber(subscriber);
     
+    timer!.start();
     const newUsers = [...userS.ref()];
     newUsers[updateeIndex] = newUsers[updateeIndex].withFirstname('Marie');
     userS.reset(newUsers);
+    timer!.end();
     
     theBonusUserFullnameZ.removeISubscriber(subscriber);
     userS.reset(initialUsers);
@@ -186,37 +206,53 @@ function totalBonusPointsVecd(userZ: Vecnal<User>): Signal<number> {
         );
 }
 
-suite.add('Initialize total bonus points via signals', () => {
-    totalBonusPointsSigd(userS);
+suite.add('Initialize total bonus points via signals', (timer) => {
+    timer!.start();
+    const totalS = totalBonusPointsSigd(userS);
+    const subscriber: Subscriber<number> = {onChange: (_) => {}};
+    totalS.addSubscriber(subscriber); // Force actual init
+    timer!.end();
+    
+    totalS.removeSubscriber(subscriber);
 });
-suite.add('Initialize total bonus points via vecnals', () => {
-    totalBonusPointsVecd(userZ);
+suite.add('Initialize total bonus points via vecnals', (timer) => {
+    timer!.start();
+    const totalS = totalBonusPointsVecd(userZ);
+    const subscriber: Subscriber<number> = {onChange: (_) => {}};
+    totalS.addSubscriber(subscriber); // Force actual init
+    timer!.end();
+    
+    totalS.removeSubscriber(subscriber);
 });
 
 const theTotalBonusPointsSigd = totalBonusPointsSigd(userS);
 const theTotalBonusPointsVecd = totalBonusPointsVecd(userZ);
 let sumUpdateeIndex = 0;
 
-suite.add('Update user in total bonus points via signals', () => {
+suite.add('Update user in total bonus points via signals', (timer) => {
     const subscriber: Subscriber<number> = {onChange: (_) => {}};
     theTotalBonusPointsSigd.addSubscriber(subscriber);
     
+    timer!.start();
     const newUsers = [...userS.ref()];
     newUsers[updateeIndex] = newUsers[updateeIndex].withFirstname('Marie');
     userS.reset(newUsers);
+    timer!.end();
     
     theTotalBonusPointsSigd.removeSubscriber(subscriber);
     userS.reset(initialUsers);
     sumUpdateeIndex = (sumUpdateeIndex + 17) % userS.ref().length;
 });
 
-suite.add('Update user in total bonus points via vecnals', () => {
+suite.add('Update user in total bonus points via vecnals', (timer) => {
     const subscriber: Subscriber<number> = {onChange: (_) => {}};
     theTotalBonusPointsVecd.addSubscriber(subscriber);
     
+    timer!.start();
     const newUsers = [...userS.ref()];
     newUsers[updateeIndex] = newUsers[updateeIndex].withFirstname('Marie');
     userS.reset(newUsers);
+    timer!.end();
     
     theTotalBonusPointsVecd.removeSubscriber(subscriber);
     userS.reset(initialUsers);
