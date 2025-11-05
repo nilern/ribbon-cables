@@ -120,11 +120,18 @@ function bonusUserFullnameZ(userZ: Vecnal<User>): Vecnal<string> {
 suite.add('Initialize page signal of bonus user fullnames', (timer) => {
     timer!.start();
     const nameS = bonusUserFullnameS(userS);
-    const subscriber: Subscriber<readonly string[]> = {onChange: (_) => {}};
-    nameS.addSubscriber(subscriber); // Force actual init
+    // Figure out changes like we would have to in order to minimize DOM manipulations:
+    const nameZ = vec.imux(eq,
+        nameS.map<ImmArrayAdapter<string>>(eq, (names) => new ImmArrayAdapter(names)));
+    const subscriber: IndexedSubscriber<string> = {
+        onInsert: (_, _1) => {},
+        onRemove: (_) => {},
+        onSubstitute: (_, _1) => {}
+    };
+    nameZ.addISubscriber(subscriber); // Force actual init
     timer!.end();
     
-    nameS.removeSubscriber(subscriber);
+    nameZ.removeISubscriber(subscriber);
 });
 suite.add('Initialize page vecnal of bonus user fullnames', (timer) => {
     timer!.start();
@@ -140,31 +147,19 @@ suite.add('Initialize page vecnal of bonus user fullnames', (timer) => {
     nameZ.removeISubscriber(subscriber);
 });
 
-const theBonusUserFullnameS = bonusUserFullnameS(userS);
-const theBonusUserFullnameZ = bonusUserFullnameZ(userZ);
 let updateeIndex = 0;
 
 suite.add('Update user in page signal of bonus user fullnames', (timer) => {
-    const subscriber: Subscriber<readonly string[]> = {onChange: (_) => {}};
-    theBonusUserFullnameS.addSubscriber(subscriber);
-    
-    timer!.start();
-    const newUsers = [...userS.ref()];
-    newUsers[updateeIndex] = newUsers[updateeIndex].withFirstname('Marie');
-    userS.reset(newUsers);
-    timer!.end();
-    
-    theBonusUserFullnameS.removeSubscriber(subscriber);
-    userS.reset(initialUsers);
-    updateeIndex = (updateeIndex + 17) % userS.ref().length;
-});
-suite.add('Update user in page vecnal of bonus user fullnames', (timer) => {
+    const nameS = bonusUserFullnameS(userS);
+    // Figure out changes like we would have to in order to minimize DOM manipulations:
+    const nameZ = vec.imux(eq,
+        nameS.map<ImmArrayAdapter<string>>(eq, (names) => new ImmArrayAdapter(names)));
     const subscriber: IndexedSubscriber<string> = {
         onInsert: (_, _1) => {},
         onRemove: (_) => {},
         onSubstitute: (_, _1) => {}
     };
-    theBonusUserFullnameZ.addISubscriber(subscriber);
+    nameZ.addISubscriber(subscriber); // Force actual init
     
     timer!.start();
     const newUsers = [...userS.ref()];
@@ -172,7 +167,26 @@ suite.add('Update user in page vecnal of bonus user fullnames', (timer) => {
     userS.reset(newUsers);
     timer!.end();
     
-    theBonusUserFullnameZ.removeISubscriber(subscriber);
+    nameZ.removeISubscriber(subscriber);
+    userS.reset(initialUsers);
+    updateeIndex = (updateeIndex + 17) % userS.ref().length;
+});
+suite.add('Update user in page vecnal of bonus user fullnames', (timer) => {
+    const nameZ = bonusUserFullnameZ(userZ);
+    const subscriber: IndexedSubscriber<string> = {
+        onInsert: (_, _1) => {},
+        onRemove: (_) => {},
+        onSubstitute: (_, _1) => {}
+    };
+    nameZ.addISubscriber(subscriber);
+    
+    timer!.start();
+    const newUsers = [...userS.ref()];
+    newUsers[updateeIndex] = newUsers[updateeIndex].withFirstname('Marie');
+    userS.reset(newUsers);
+    timer!.end();
+    
+    nameZ.removeISubscriber(subscriber);
     userS.reset(initialUsers);
     updateeIndex = (updateeIndex + 17) % userS.ref().length;
 });
