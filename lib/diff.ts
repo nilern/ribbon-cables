@@ -325,41 +325,39 @@ function myersDiff<T, U>(curr: Sized & Indexed<T>, goal: Sized & Indexed<U>, eq:
     return (new Differ(curr, goal, eq)).diff();
 }
 
-// OPTIMIZE: In place:
-function substituteSubstitutions(diffEdits: DiffEditScript): EditScript {
-    const len = diffEdits.length;
+function substituteSubstitutions(edits: DiffEditScript) {
+    const len = edits.length;
     
-    if (len < 2) { return [...diffEdits]; }
-
-    const edits: EditScript = [];
+    if (len < 2) { return; }
     
-    {
-        let prevEdit: DiffEdit | undefined = diffEdits[0];
+    let destIdx = 0;
+    let prevEdit: DiffEdit | undefined = edits[0];
+    
+    for (let srcIdx = 1; srcIdx < len; ++srcIdx) {
+        const edit = edits[srcIdx];
         
-        for (let i = 1; i < len; ++i) {
-            const edit = diffEdits[i];
-            
-            if (prevEdit instanceof Insert
-                && edit instanceof Delete
-                && prevEdit.index + 1 === edit.index
-            ) {
-                edits.push(new Substitute(prevEdit.index));
-                prevEdit = undefined;
-            } else {
-                if (prevEdit) { edits.push(prevEdit); }
-                prevEdit = edit;
-            }
+        if (prevEdit instanceof Insert
+            && edit instanceof Delete
+            && prevEdit.index + 1 === edit.index
+        ) {
+            edits[destIdx++] = new Substitute(prevEdit.index);
+            prevEdit = undefined;
+        } else {
+            if (prevEdit) { edits[destIdx++] = prevEdit; }
+            prevEdit = edit;
         }
-        
-        if (prevEdit) { edits.push(prevEdit); }
     }
     
-    return edits;
+    if (prevEdit) { if (prevEdit) { edits[destIdx++] = prevEdit; } }
+    edits.length = destIdx;
 }
 
 // OPTIMIZE: Take callbacks object instead of returning array of edits:
 function diff<T, U>(curr: Sized & Indexed<T>, goal: Sized & Indexed<U>, eq: (x: T, y: U) => boolean
 ): EditScript {
-    return substituteSubstitutions(myersDiff(curr, goal, eq));
+    const edits = myersDiff(curr, goal, eq);
+    substituteSubstitutions(edits);
+    
+    return edits;
 }
 
