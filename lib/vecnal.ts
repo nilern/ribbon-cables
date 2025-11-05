@@ -620,15 +620,6 @@ class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
         this.indexMapping.pop();
     }
     
-    private substitute(inputIndex: number, v: T) {
-        let substIndex = this.indexMapping[inputIndex];
-        
-        const oldV = this.vs[substIndex];
-        this.vs[substIndex] = v;
-        
-        this.notifySubstitute(substIndex, oldV, v);
-    }
-    
     onInsert(i: number, v: T) {
         if (this.f(v)) {
             const insertionIndex = this.insertionIndex(i);
@@ -664,7 +655,12 @@ class FilteredVecnal<T> extends SubscribingSubscribeableVecnal<T>
         
         if (j >= 0) { // Old value was not filtered out
             if (this.f(v)) { // New value not filtered out either
-                this.substitute(i, v);
+                let substIndex = this.indexMapping[i];
+        
+                const oldV = this.vs[substIndex];
+                this.vs[substIndex] = v;
+                
+                this.notifySubstitute(substIndex, oldV, v);
             } else { // New value is filtered out
                 const removalIndex = this.indexMapping[i];
         
