@@ -31,9 +31,7 @@ abstract class Signal<T> implements ISignal<T> {
     abstract notify(v: T, u: T): void;
     
     map<U>(equals: (x: U, y: U) => boolean, f: (v: T) => U): Signal<U> {
-        const g = f as (...xs: any[]) => U; // SAFETY: `xs` are `[this].map((x) => x.ref())`
-    
-        return new MappedSignal(equals, g, this);
+        return new SinglyMappedSignal(equals, f, this);
     }
     
     map2<R, U>(equals: (x: R, y: R) => boolean, f: (x: T, y: U) => R, that: Signal<U>
@@ -43,6 +41,8 @@ abstract class Signal<T> implements ISignal<T> {
         
         return new MappedSignal(equals, g, this, that);
     }
+    
+    // TODO: map3 etc.
 }
 
 // TODO: Use mixins instead of this slightly arbitrary hierarchy of abstract classes:
@@ -162,6 +162,44 @@ class SourceSignal<T> extends CheckingSubscribeableSignal<T> implements Reset<T>
 
 function source<T>(equals: (x: T, y: T) => boolean, initVal: T): Signal<T> & Reset<T> {
     return new SourceSignal(equals, initVal);
+}
+
+class SinglyMappedSignal<U, T> extends CheckingSubscribingSubscribeableSignal<U>
+    implements Subscriber<T>
+{
+    private v: U | undefined = undefined;
+    
+    constructor(
+        equals: (x: U, y: U) => boolean,
+        private readonly f: (v: T) => U,
+        private readonly input: Signal<T>
+    ) {
+        super(equals);
+    }
+    
+    ref(): U {
+        if (this.subscribers.size === 0) { return this.f(this.input.ref()); }
+        
+        return this.v!;
+    }
+    
+    subscribeToDeps() {
+        this.input.addSubscriber(this);
+        
+        this.v = this.f(this.input.ref());
+    }
+    
+    unsubscribeFromDeps() {
+        this.input.removeSubscriber(this);
+    }
+    
+    onChange(v: T) {
+        const oldVal = this.v!;
+        const newVal = this.f(v);
+        this.v = newVal;
+        
+        this.notify(oldVal, newVal);
+    }
 }
 
 class MappedSignal<U, T extends Signal<any>[]>
