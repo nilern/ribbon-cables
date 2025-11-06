@@ -1,6 +1,6 @@
 node_modules
 lib/*.js
-app/js/*.js
+examples/todomvc/js/*.js
 benchmarks/*.js
 coverage
 docs
