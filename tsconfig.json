@@ -1,5 +1,9 @@
 {
-  "include": ["lib/*", "examples/todomvc/js/*", "benchmarks/*"],
+  "include": [
+    "lib/*",
+    "examples/todomvc/js/*", "examples/js-framework-benchmark/js/*",
+    "benchmarks/*"
+  ],
     
   "compilerOptions": {
     /* Visit https://aka.ms/tsconfig.json to read more about this file */
