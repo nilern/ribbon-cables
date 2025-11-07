@@ -70,6 +70,12 @@ const nouns: readonly string[] = [
   "keyboard",
 ];
 
+function randLabel(): string {
+    return adjectives[randNat(adjectives.length)] + " " +
+        colours[randNat(colours.length)] + " " +
+        nouns[randNat(nouns.length)];
+}
+
 class Datum {
     constructor(
         public readonly id: number,
@@ -88,12 +94,20 @@ class Model {
         const data = new Array(count);
         
         for (let i = 0; i < count; ++i) {
-            data[i] = new Datum(
-                nextId++,
-                adjectives[randNat(adjectives.length)] + " " +
-                colours[randNat(colours.length)] + " " +
-                nouns[randNat(nouns.length)]
-            );
+            data[i] = new Datum(nextId++, randLabel());
+        }
+        
+        return new Model(nextId, data);
+    }
+    
+    append(count: number): Model {
+        let nextId = this.nextId;
+        const data = [...this.data];
+        const oldLen = this.data.length;
+        const len = data.length = oldLen + count;
+        
+        for (let i = oldLen; i < len; ++i) {
+            data[i] = new Datum(nextId++, randLabel());
         }
         
         return new Model(nextId, data);
@@ -116,6 +130,10 @@ class Ctrl {
     
     rebuild(count: number) {
         this.nodes.frame(() => this.modelS.reset(this.modelS.ref().rebuild(count)));
+    }
+    
+    append(count: number) {
+        this.nodes.frame(() => this.modelS.reset(this.modelS.ref().append(count)));
     }
     
     selectRow(id: number) { this.nodes.frame(() => this.selectedS.reset(id)); }
@@ -141,15 +159,16 @@ function benchButton(nodes: NodeFactory, id: string, label: string, onClick: Eve
 }
 
 type BenchButtonsProps = {
-    onBuild: (count: number) => void
+    onBuild: (count: number) => void,
+    onAdd: (count: number) => void
 };
 
-function benchButtons(nodes: NodeFactory, {onBuild}: BenchButtonsProps): Node {
+function benchButtons(nodes: NodeFactory, {onBuild, onAdd}: BenchButtonsProps): Node {
     return nodes.el("div", {class: "col-md-6"},
         nodes.el("div", {class: "row"},
            benchButton(nodes, "run", "Create 1,000 rows", (_) => onBuild(1000)),
            benchButton(nodes, "runlots", "Create 10,000 rows", (_) => onBuild(10000)),
-           benchButton(nodes, "add", "Append 1,000 rows", (_) => {}),
+           benchButton(nodes, "add", "Append 1,000 rows", (_) => onAdd(1000)),
            benchButton(nodes, "update", "Update every 10th row", (_) => {}),
            benchButton(nodes, "clear", "Clear", (_) => {}),
            benchButton(nodes, "swaprows", "Swap rows", (_) => {})));
@@ -212,7 +231,8 @@ function createUI(
             nodes.el("div", {class: "row"},
                 heading(nodes),
                 benchButtons(nodes, {
-                    onBuild: (count) => ctrl.rebuild(count)
+                    onBuild: (count) => ctrl.rebuild(count),
+                    onAdd: (count) => ctrl.append(count)
                 }))),
                 
         table(nodes, {
