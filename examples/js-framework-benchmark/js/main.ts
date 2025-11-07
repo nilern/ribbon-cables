@@ -163,7 +163,10 @@ class Ctrl {
     ) {}
     
     rebuild(count: number) {
-        this.nodes.frame(() => this.modelS.reset(this.modelS.ref().rebuild(count)));
+        this.nodes.frame(() => {
+            this.modelS.reset(this.modelS.ref().rebuild(count));
+            this.selectedS.reset(undefined);
+        });
     }
     
     append(count: number) {
