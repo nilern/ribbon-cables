@@ -129,6 +129,24 @@ class Model {
     
     clear(): Model { return new Model(this.nextId); }
     
+    swapRows(): Model {
+        const data = (() => {
+            if (this.data.length > 998) {
+                const data = [...this.data];
+                
+                const datum1 = data[1];
+                data[1] = data[998];
+                data[998] = datum1;
+                
+                return data;
+            } else {
+                return this.data;
+            }
+        })();
+    
+        return new Model(this.nextId, data);
+    }
+    
     withoutRow(id: number): Model {
         return new Model(
             this.nextId,
@@ -163,6 +181,10 @@ class Ctrl {
         });
     }
     
+    swapRows() {
+        this.nodes.frame(() => this.modelS.reset(this.modelS.ref().swapRows()));
+    }
+    
     selectRow(id: number) { this.nodes.frame(() => this.selectedS.reset(id)); }
     
     deleteRow(id: number) {
@@ -189,10 +211,12 @@ type BenchButtonsProps = {
     onBuild: (count: number) => void,
     onAdd: (count: number) => void,
     onUpdate: (stride: number) => void,
-    onClear: () => void
+    onClear: () => void,
+    onSwapRows: () => void
 };
 
-function benchButtons(nodes: NodeFactory, {onBuild, onAdd, onUpdate, onClear}: BenchButtonsProps
+function benchButtons(
+    nodes: NodeFactory, {onBuild, onAdd, onUpdate, onClear, onSwapRows}: BenchButtonsProps
 ): Node {
     return nodes.el("div", {class: "col-md-6"},
         nodes.el("div", {class: "row"},
@@ -201,7 +225,7 @@ function benchButtons(nodes: NodeFactory, {onBuild, onAdd, onUpdate, onClear}: B
            benchButton(nodes, "add", "Append 1,000 rows", (_) => onAdd(1000)),
            benchButton(nodes, "update", "Update every 10th row", (_) => onUpdate(10)),
            benchButton(nodes, "clear", "Clear", (_) => onClear()),
-           benchButton(nodes, "swaprows", "Swap rows", (_) => {})));
+           benchButton(nodes, "swaprows", "Swap rows", (_) => onSwapRows())));
 }
  
 type RowProps = {
@@ -264,7 +288,8 @@ function createUI(
                     onBuild: (count) => ctrl.rebuild(count),
                     onAdd: (count) => ctrl.append(count),
                     onUpdate: (stride) => ctrl.updateNth(stride),
-                    onClear: () => ctrl.clear()
+                    onClear: () => ctrl.clear(),
+                    onSwapRows: () => ctrl.swapRows()
                 }))),
                 
         table(nodes, {
