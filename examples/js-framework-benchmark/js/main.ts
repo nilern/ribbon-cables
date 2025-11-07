@@ -127,6 +127,8 @@ class Model {
         return new Model(this.nextId, data);
     }
     
+    clear(): Model { return new Model(this.nextId); }
+    
     withoutRow(id: number): Model {
         return new Model(
             this.nextId,
@@ -154,6 +156,13 @@ class Ctrl {
         this.nodes.frame(() => this.modelS.reset(this.modelS.ref().updateNth(stride)));
     }
     
+    clear() {
+        this.nodes.frame(() => {
+            this.modelS.reset(this.modelS.ref().clear());
+            this.selectedS.reset(undefined);
+        });
+    }
+    
     selectRow(id: number) { this.nodes.frame(() => this.selectedS.reset(id)); }
     
     deleteRow(id: number) {
@@ -179,17 +188,19 @@ function benchButton(nodes: NodeFactory, id: string, label: string, onClick: Eve
 type BenchButtonsProps = {
     onBuild: (count: number) => void,
     onAdd: (count: number) => void,
-    onUpdate: (stride: number) => void
+    onUpdate: (stride: number) => void,
+    onClear: () => void
 };
 
-function benchButtons(nodes: NodeFactory, {onBuild, onAdd, onUpdate}: BenchButtonsProps): Node {
+function benchButtons(nodes: NodeFactory, {onBuild, onAdd, onUpdate, onClear}: BenchButtonsProps
+): Node {
     return nodes.el("div", {class: "col-md-6"},
         nodes.el("div", {class: "row"},
            benchButton(nodes, "run", "Create 1,000 rows", (_) => onBuild(1000)),
            benchButton(nodes, "runlots", "Create 10,000 rows", (_) => onBuild(10000)),
            benchButton(nodes, "add", "Append 1,000 rows", (_) => onAdd(1000)),
            benchButton(nodes, "update", "Update every 10th row", (_) => onUpdate(10)),
-           benchButton(nodes, "clear", "Clear", (_) => {}),
+           benchButton(nodes, "clear", "Clear", (_) => onClear()),
            benchButton(nodes, "swaprows", "Swap rows", (_) => {})));
 }
  
@@ -252,7 +263,8 @@ function createUI(
                 benchButtons(nodes, {
                     onBuild: (count) => ctrl.rebuild(count),
                     onAdd: (count) => ctrl.append(count),
-                    onUpdate: (stride) => ctrl.updateNth(stride)
+                    onUpdate: (stride) => ctrl.updateNth(stride),
+                    onClear: () => ctrl.clear()
                 }))),
                 
         table(nodes, {
