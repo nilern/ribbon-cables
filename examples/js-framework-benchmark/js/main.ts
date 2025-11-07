@@ -81,6 +81,8 @@ class Datum {
         public readonly id: number,
         public readonly label: string
     ) {}
+    
+    withLabel(label: string): Datum { return new Datum(this.id, label); }
 }
 
 class Model {
@@ -113,6 +115,18 @@ class Model {
         return new Model(nextId, data);
     }
     
+    updateNth(stride: number): Model {
+        const data = [...this.data];
+        
+        const len = data.length;
+        for (let i = 0; i < len; i += stride) {
+            const datum = data[i];
+            data[i] = datum.withLabel(datum.label + " !!!"); // OPTIMIZE
+        }
+        
+        return new Model(this.nextId, data);
+    }
+    
     withoutRow(id: number): Model {
         return new Model(
             this.nextId,
@@ -134,6 +148,10 @@ class Ctrl {
     
     append(count: number) {
         this.nodes.frame(() => this.modelS.reset(this.modelS.ref().append(count)));
+    }
+    
+    updateNth(stride: number) {
+        this.nodes.frame(() => this.modelS.reset(this.modelS.ref().updateNth(stride)));
     }
     
     selectRow(id: number) { this.nodes.frame(() => this.selectedS.reset(id)); }
@@ -160,16 +178,17 @@ function benchButton(nodes: NodeFactory, id: string, label: string, onClick: Eve
 
 type BenchButtonsProps = {
     onBuild: (count: number) => void,
-    onAdd: (count: number) => void
+    onAdd: (count: number) => void,
+    onUpdate: (stride: number) => void
 };
 
-function benchButtons(nodes: NodeFactory, {onBuild, onAdd}: BenchButtonsProps): Node {
+function benchButtons(nodes: NodeFactory, {onBuild, onAdd, onUpdate}: BenchButtonsProps): Node {
     return nodes.el("div", {class: "col-md-6"},
         nodes.el("div", {class: "row"},
            benchButton(nodes, "run", "Create 1,000 rows", (_) => onBuild(1000)),
            benchButton(nodes, "runlots", "Create 10,000 rows", (_) => onBuild(10000)),
            benchButton(nodes, "add", "Append 1,000 rows", (_) => onAdd(1000)),
-           benchButton(nodes, "update", "Update every 10th row", (_) => {}),
+           benchButton(nodes, "update", "Update every 10th row", (_) => onUpdate(10)),
            benchButton(nodes, "clear", "Clear", (_) => {}),
            benchButton(nodes, "swaprows", "Swap rows", (_) => {})));
 }
@@ -232,7 +251,8 @@ function createUI(
                 heading(nodes),
                 benchButtons(nodes, {
                     onBuild: (count) => ctrl.rebuild(count),
-                    onAdd: (count) => ctrl.append(count)
+                    onAdd: (count) => ctrl.append(count),
+                    onUpdate: (stride) => ctrl.updateNth(stride)
                 }))),
                 
         table(nodes, {
