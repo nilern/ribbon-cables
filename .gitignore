@@ -1,7 +1,7 @@
 node_modules
 lib/*.js
 examples/todomvc/js/*.js
-examples/js-framework-benchmark/js/*.js
+examples/js-framework-benchmark/frameworks/non-keyed/vecnal/js/*.js
 benchmarks/*.js
 coverage
 docs

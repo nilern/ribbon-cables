@@ -1,7 +1,8 @@
 {
   "include": [
     "lib/*",
-    "examples/todomvc/js/*", "examples/js-framework-benchmark/js/*",
+    "examples/todomvc/js/*",
+    "examples/js-framework-benchmark/frameworks/non-keyed/vecnal/js/*",
     "benchmarks/*"
   ],
     
