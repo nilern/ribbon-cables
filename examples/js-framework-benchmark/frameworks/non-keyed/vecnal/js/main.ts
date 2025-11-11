@@ -1,14 +1,14 @@
-"use strict";
 
-import type {Reset} from "../../../../../../lib/prelude.js";
-import {eq, ImmArrayAdapter} from "../../../../../../lib/prelude.js"; // HACK
-import type {Framer} from "../../../../../../lib/dom.js";
-import * as dom from "../../../../../../lib/dom.js";
-import type {NodeFactory, EventHandler} from "../../../../../../lib/dom.js";
-import {Signal} from "../../../../../../lib/signal.js";
-import * as sig from "../../../../../../lib/signal.js";
-import {Vecnal} from "../../../../../../lib/vecnal.js";
-import * as vec from "../../../../../../lib/vecnal.js";
+
+import type {Reset} from "../dist/prelude.js";
+import {eq, ImmArrayAdapter} from "../dist/prelude.js"; // HACK
+import type {Framer} from "../dist/dom.js";
+import * as dom from "../dist/dom.js";
+import type {NodeFactory, EventHandler} from "../dist/dom.js";
+import {Signal} from "../dist/signal.js";
+import * as sig from "../dist/signal.js";
+import {Vecnal} from "../dist/vecnal.js";
+import * as vec from "../dist/vecnal.js";
 
 function randNat(max: number) { return Math.floor(Math.random() * max); }
 

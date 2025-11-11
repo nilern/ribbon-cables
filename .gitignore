@@ -5,4 +5,5 @@ examples/js-framework-benchmark/frameworks/non-keyed/vecnal/js/*.js
 benchmarks/*.js
 coverage
 docs
+**/dist
 
