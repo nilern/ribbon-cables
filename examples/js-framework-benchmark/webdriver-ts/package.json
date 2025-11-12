@@ -1,0 +1,47 @@
+{
+  "name": "webdriver-ts",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "tsbench": "cross-env LANG=\"en_US.UTF-8\" ts-node --files src/benchmarkRunner.ts",
+    "bench": "cross-env LANG=\"en_US.UTF-8\" node dist/benchmarkRunner.js",
+    "checkCSP": "cross-env LANG=\"en_US.UTF-8\" node dist/isCSPCompliant.js",
+    "compile": "tsc",
+    "results": "node dist/createResultJS.js && cd .. && cd webdriver-ts-results && npm run build",
+    "resultsChrome": "node dist/createResultJS.js --browser chrome && cd .. && cd webdriver-ts-results && npm run build-prod",
+    "resultsFirefox": "node dist/createResultJS.js --browser firefox && cd .. && cd webdriver-ts-results && npm run build-prod",
+    "resultsSafari": "node dist/createResultJS.js --browser safari && cd .. && cd webdriver-ts-results && npm run build-prod",
+    "isKeyed": "cross-env LANG=\"en_US.UTF-8\" node dist/isKeyed.js",
+    "test": "vitest --run",
+    "test:watch": "vitest",
+    "coverage": "vitest --run --coverage"
+  },
+  "author": "",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@types/node": "24.7.0",
+    "@types/ramda": "0.31.1",
+    "@types/selenium-webdriver": "4.35.1",
+    "@types/semver": "7.7.1",
+    "@types/yargs": "17.0.33",
+    "@vitest/coverage-v8": "^3.2.4",
+    "ts-node": "^10.9.2",
+    "typescript": "5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "dependencies": {
+    "chromedriver": "141.0.0",
+    "cross-env": "10.1.0",
+    "lighthouse": "12.8.2",
+    "playwright": "1.56.0",
+    "playwright-firefox": "1.56.0",
+    "playwright-webkit": "1.56.0",
+    "puppeteer-core": "24.23.0",
+    "ramda": "0.31.3",
+    "selenium-webdriver": "4.36.0",
+    "semver": "7.7.2",
+    "yargs": "18.0.0"
+  }
+}

@@ -5,7 +5,7 @@
   "main": "index.js",
   "js-framework-benchmark": {
     "frameworkVersion": "0.1.0",
-    "issues": []
+    "frameworkHomeURL": ""
   },
   "scripts": {
     "dev": "exit 0",

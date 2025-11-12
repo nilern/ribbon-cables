@@ -1,9 +1,11 @@
-node_modules
+**/node_modules
+**/dist
 lib/*.js
 examples/todomvc/js/*.js
 examples/js-framework-benchmark/frameworks/non-keyed/vecnal/js/*.js
+examples/js-framework-benchmark/webdriver-ts/results
+examples/js-framework-benchmark/webdriver-ts/traces
 benchmarks/*.js
 coverage
 docs
-**/dist
 
