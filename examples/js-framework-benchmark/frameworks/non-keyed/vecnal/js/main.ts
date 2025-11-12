@@ -87,32 +87,32 @@ class Datum {
 
 class Model {
     constructor(
-        public readonly nextId: number = 0,
+        public readonly lastId: number = 0,
         public readonly data: readonly Datum[] = []
     ) {}
     
     rebuild(count: number): Model {
-        let nextId = this.nextId;
+        let lastId = this.lastId;
         const data = new Array(count);
         
         for (let i = 0; i < count; ++i) {
-            data[i] = new Datum(nextId++, randLabel());
+            data[i] = new Datum(++lastId, randLabel());
         }
         
-        return new Model(nextId, data);
+        return new Model(lastId, data);
     }
     
     append(count: number): Model {
-        let nextId = this.nextId;
+        let lastId = this.lastId;
         const data = [...this.data];
         const oldLen = this.data.length;
         const len = data.length = oldLen + count;
         
         for (let i = oldLen; i < len; ++i) {
-            data[i] = new Datum(nextId++, randLabel());
+            data[i] = new Datum(++lastId, randLabel());
         }
         
-        return new Model(nextId, data);
+        return new Model(lastId, data);
     }
     
     updateNth(stride: number): Model {
@@ -124,10 +124,10 @@ class Model {
             data[i] = datum.withLabel(datum.label + " !!!"); // OPTIMIZE
         }
         
-        return new Model(this.nextId, data);
+        return new Model(this.lastId, data);
     }
     
-    clear(): Model { return new Model(this.nextId); }
+    clear(): Model { return new Model(this.lastId); }
     
     swapRows(): Model {
         const data = (() => {
@@ -144,12 +144,12 @@ class Model {
             }
         })();
     
-        return new Model(this.nextId, data);
+        return new Model(this.lastId, data);
     }
     
     withoutRow(id: number): Model {
         return new Model(
-            this.nextId,
+            this.lastId,
             this.data.filter((datum) => datum.id !== id)
         );
     }
