@@ -3,24 +3,32 @@ export type {
 };
 export {
     Signal,
-    NonNotifyingSignal, SubscribeableSignal, CheckingSubscribingSubscribeableSignal,
+    NonNotifyingSignal,
+    SubscribeableSignal, SubscribingSubscribeableSignal, CheckingSubscribingSubscribeableSignal,
     stable, source
 };
 
 import type {Deref, Reset} from "./prelude.js";
 
+/** An object that can be notified of value changes. */
 interface Subscriber<T> {
+    /** Receives the new value v. */
     onChange: (v: T) => void; // TODO: Already reject non-changes here
 }
 
+/** An object that can inform {@link Subscriber}s of changes to a value of type T. */
 interface Observable<T> {
+    /** Add a {@link Subscriber}. */
     addSubscriber: (subscriber: Subscriber<T>) => void;
     
+    /** Remove a {@link Subscriber}. */
     removeSubscriber: (subscriber: Subscriber<T>) => void;
     
+    /** Notify all {@link Subscriber}s that the value is now v. */
     notify: (oldVal: T, newVal: T) => void;
 }
 
+/** Contains a value that changes over time and can read and the changes subscribed to. */
 abstract class Signal<T> implements Deref<T>, Observable<T> {
     abstract ref(): T;
     
@@ -28,10 +36,16 @@ abstract class Signal<T> implements Deref<T>, Observable<T> {
     abstract removeSubscriber(subscriber: Subscriber<T>): void;
     abstract notify(v: T, u: T): void;
     
+    /** Create a derived signal whose value is always f(this.ref()).
+        If the derived signal receives a new value from this that does not change its value wrt.
+        equals() it will not notify its subscribers. */
     map<U>(equals: (x: U, y: U) => boolean, f: (v: T) => U): Signal<U> {
         return new SinglyMappedSignal(equals, f, this);
     }
     
+    /** Create a derived signal whose value is always f(this.ref(), that.ref()).
+        If the derived signal receives a new value from this or that that does not change its value
+        wrt. equals() it will not notify its subscribers. */
     map2<R, U>(equals: (x: R, y: R) => boolean, f: (x: T, y: U) => R, that: Signal<U>
     ): Signal<R> {
         // SAFETY: `xs` are `[this, that].map((x) => x.ref())`:
@@ -45,6 +59,7 @@ abstract class Signal<T> implements Deref<T>, Observable<T> {
 
 // TODO: Use mixins instead of this slightly arbitrary hierarchy of abstract classes:
 
+/** A {@link Signal} that never notifies (and thus does not even store) its {@link Subscriber}s. */
 abstract class NonNotifyingSignal<T> extends Signal<T> {
     addSubscriber(_: Subscriber<T>) {}
     
@@ -53,7 +68,9 @@ abstract class NonNotifyingSignal<T> extends Signal<T> {
     notify(_: T, _1: T) {}
 }
 
+/** A {@link Signal} that stores its subscribers in a {@link Set}. */
 abstract class SubscribeableSignal<T> extends Signal<T> {
+    /** The internal set of subscribers. */
     protected readonly subscribers = new Set<Subscriber<T>>();
     
     addSubscriber(subscriber: Subscriber<T>) {
@@ -71,6 +88,8 @@ abstract class SubscribeableSignal<T> extends Signal<T> {
     }
 }
 
+/** A {@link SubscribeableSignal} that only notifies its subscribers if its value changes wrt.
+    equals() */
 abstract class CheckingSubscribeableSignal<T> extends SubscribeableSignal<T> {
     constructor(
         private readonly equals: (x: T, y: T) => boolean
@@ -85,8 +104,12 @@ abstract class CheckingSubscribeableSignal<T> extends SubscribeableSignal<T> {
     }
 }
 
+/** A {@link SubscribeableSignal} that subscribes to its own dependencies while it itself has
+    subscribers */
 abstract class SubscribingSubscribeableSignal<T> extends SubscribeableSignal<T> {
+    /** Subscribe to dependencies (called when this gets its first subscriber). */
     abstract subscribeToDeps(): void;
+    /** Unsubscribe from dependencies (called when this loses its last subscriber). */
     abstract unsubscribeFromDeps(): void;
     
     addSubscriber(subscriber: Subscriber<T>) {
@@ -109,7 +132,8 @@ abstract class SubscribingSubscribeableSignal<T> extends SubscribeableSignal<T> 
         }
     }
 }
-
+/** A {@link SubscribingSubscribeableSignal} that only notifies its subscribers if its value changes
+    wrt. equals() */
 abstract class CheckingSubscribingSubscribeableSignal<T>
     extends SubscribingSubscribeableSignal<T>
 {
@@ -136,6 +160,7 @@ class ConstSignal<T> extends NonNotifyingSignal<T> {
     ref(): T { return this.v; }
 }
 
+/** Create a {@link Signal} that always has the value v. */
 function stable<T>(v: T): Signal<T> { return new ConstSignal(v); }
 
 class SourceSignal<T> extends CheckingSubscribeableSignal<T> implements Reset<T> {
@@ -158,6 +183,8 @@ class SourceSignal<T> extends CheckingSubscribeableSignal<T> implements Reset<T>
     }
 }
 
+/** Creates a {@link Reset}able signal with initial value initVal that only notifies its subscribers
+    if its value changes wrt. equals() */
 function source<T>(equals: (x: T, y: T) => boolean, initVal: T): Signal<T> & Reset<T> {
     return new SourceSignal(equals, initVal);
 }
