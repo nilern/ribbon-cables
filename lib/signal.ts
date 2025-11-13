@@ -21,9 +21,7 @@ interface Observable<T> {
     notify: (oldVal: T, newVal: T) => void;
 }
 
-interface ISignal<T> extends Deref<T>, Observable<T> {}
-
-abstract class Signal<T> implements ISignal<T> {
+abstract class Signal<T> implements Deref<T>, Observable<T> {
     abstract ref(): T;
     
     abstract addSubscriber(subscriber: Subscriber<T>): void;
