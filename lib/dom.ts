@@ -18,22 +18,31 @@ import {Signal, SubscribeableSignal} from "./signal.js";
 import type {IndexedObservable, IndexedSubscriber} from "./vecnal.js";
 import {Vecnal} from "./vecnal.js";
 
+/** A (stable or changing) value that is convertible to a text node. */
 type TextValue = string | Signal<string>;
 
+/** An instantaneous value of a node attribute. */
 type AttributeString = string | undefined;
 
+/** A (stable or changing) value that is convertible to a node attribute. */
 type BaseAttributeValue = AttributeString | Signal<AttributeString>;
 
+/** A generic event handler function. */
 type EventHandler = (event: Event) => void;
 
+/** An instantaneous value of the style attribute. */
 type StyleAttributeValue = {[key: string]: BaseAttributeValue};
 
+/** Any value that is convertible to a node attribute. */
 type AttributeValue = BaseAttributeValue | EventHandler | StyleAttributeValue;
 
+/** Attribute initializer map. */
 type InitAttrs = {[key: string]: AttributeValue};
 
+/** A value that is convertible to a child node. */
 type ChildValue = MountableNode | TextValue; // TODO: `Signal<MountableNode>`
 
+/** A value that is convertible to a child node or multiple child nodes. */
 type Nest = ChildValue | Iterable<ChildValue> | Fragment;
 
 function childValueToNode(nodes: NodeFactory, child: ChildValue): MountableNode {
@@ -50,14 +59,18 @@ function childValueToNode(nodes: NodeFactory, child: ChildValue): MountableNode 
 // Using the correct variances here although unsafe casts will be required on actual use:
 type Watchees = Map<Observable<any>, Set<Subscriber<never>>>;
 type MultiWatchees = Map<IndexedObservable<any>, Set<IndexedSubscriber<never>>>;
+
 // TODO: DRY out properties:
 // TODO: Most of these props are actually not optional (after checked cast):
 // HACKs for forcibly shoving these properties into DOM nodes:
+/** A {@link Node} that we can mount to the DOM (via e.g. {@link appendChild}). */
 interface MountableNode extends Node {
     __vcnDetached?: boolean,
     __vcnNodes?: NodeFactory & UpdateQueue,
     __vcnWatchees?: Watchees
 }
+
+/** A {@link MountableNode} that is an {@link Element}. */
 interface MountableElement extends Element {
     __vcnDetached?: boolean,
     __vcnNodes?: NodeFactory & UpdateQueue,
@@ -67,6 +80,8 @@ interface MountableElement extends Element {
     __vcnNests?: readonly Nest[],
     __vcnOffsets?: number[]
 }
+
+/** A {@link MountableNode} that is a {@link Text} node. */
 interface MountableText extends Text {
     __vcnDetached?: boolean,
     __vcnNodes?: NodeFactory & UpdateQueue,
@@ -93,7 +108,10 @@ class ChildSignal<T> extends SubscribeableSignal<T> implements Reset<T> {
     }
 }
 
+/** A {@link Nest} that produces the initial children via {@link Fragment.hatchChildren} and
+    notifies of updates to them via the {@link IndexedObservable} interface. */
 abstract class Fragment implements IndexedObservable<Node> {
+    /** Produce the initial list of children. */
     abstract hatchChildren(): Iterable<MountableNode>;
     
     abstract addISubscriber(subscriber: IndexedSubscriber<Node>): void;
@@ -378,6 +396,7 @@ function unmount(node: MountableNode) {
     }
 }
 
+/** Append a (possibly) reactive child node to parent element. */
 function appendChild(parent: Element, child: Node) {
     parent.appendChild(child);
     if (isMounted(parent)) {
@@ -385,6 +404,7 @@ function appendChild(parent: Element, child: Node) {
     }
 }
 
+/** Insert a (possibly) reactive child node to parent element before successor. */
 function insertBefore(parent: Element, child: Node, successor: Node) {
     parent.insertBefore(child, successor);
     if (isMounted(parent)) {
@@ -392,6 +412,7 @@ function insertBefore(parent: Element, child: Node, successor: Node) {
     }
 }
 
+/** Remove a (possibly) reactive child node from parent element. */
 function removeChild(parent: Element, child: Node) {
     parent.removeChild(child);
     if (isMounted(parent)) {
@@ -399,6 +420,7 @@ function removeChild(parent: Element, child: Node) {
     }
 }
 
+/** Replace the (possibly) reactive old child node of parent with a new one. */
 function replaceChild(parent: Element, child: Node, oldChild: Node) {
     parent.replaceChild(child, oldChild);
     if (isMounted(parent)) {
@@ -463,11 +485,17 @@ function initStyleAttribute(
     }
 }
 
+/** An object that can create reactive nodes and reactive lists of reactive nodes. */
 interface NodeFactory {
+    /** Create a reactive element with tag tagName and attributes and elements created (on mount to
+        visible DOM) from attrs and children respectively. */
     el: (tagName: string, attrs: InitAttrs, ...children: Nest[]) => MountableElement;
-        
+    
+    /** Create a (possibly) reactive text node with text from data. */
     text: (data: TextValue) => MountableText;
     
+    /** Create a reactive list of child nodes that are created (on mount to visible DOM or changes
+        to vS thereafter) from signals tracking the elements of vS. */
     forVecnal: <T>(vS: Vecnal<T>, itemView: (vS: Signal<T>) => ChildValue) => Fragment;
 }
 
@@ -479,15 +507,22 @@ interface UpdateQueue {
 
 // TODO: Statically ensure that mutations are contained inside this (by e.g.
 // passing a Witness/Capability to `mutate`)?:
+/** A function that calls mutate to generate DOM changes and commits those changes to the DOM in
+bulk. */
 type FramingFn = (mutate: () => void) => void;
 
+/** Allows committing changes to the DOM. */
 interface Framer {
+    /** A {@link FramingFn} that commits the DOM changes on `requestAnimationFrame`. */
     frame: FramingFn,
     
-    /** {@link frame} without `requestAnimationFrame` (for testing). */
+    /** A {@link FramingFn} that does not use `requestAnimationFrame` (for e.g. testing with an
+        emulated DOM). */
     jankyFrame: FramingFn
 }
 
+/** A concrete implementation of {@link NodeFactory} and {@link Framer} for all your high level
+    DOM manipulation needs. */
 class NodeManager implements NodeFactory, UpdateQueue, Framer {
     private readonly updates = [] as NodeUpdate[];
 
