@@ -11,14 +11,17 @@ import {Sized, Indexed} from "./prelude.js";
 // EUGENE W. MYERS: An O(ND) Difference Algorithm and Its Variations
 // 4b. A Linear Space Refinement
 
+/** Insertion at index. */
 class Insert {
     constructor(public readonly index: number) {}
 }
 
+/** Deletion at index. */
 class Delete {
     constructor(public readonly index: number) {}
 }
 
+/** Substitution at index. */
 class Substitute {
     constructor(public readonly index: number) {}
 }
@@ -27,8 +30,10 @@ type DiffEdit = Insert | Delete;
 
 type DiffEditScript = DiffEdit[];
 
+/** A list edit. */
 type Edit = Insert | Delete | Substitute;
 
+/** A list of edits that transforms a list to have the same elements as another. */
 type EditScript = Edit[];
 
 class Box {
@@ -320,9 +325,10 @@ class Differ<T, U> {
     }
 }
 
-function myersDiff<T, U>(curr: Sized & Indexed<T>, goal: Sized & Indexed<U>, eq: (x: T, y: U) => boolean
+function myersDiff<T, U>(
+    curr: Sized & Indexed<T>, goal: Sized & Indexed<U>, equal: (x: T, y: U) => boolean
 ): DiffEditScript {
-    return (new Differ(curr, goal, eq)).diff();
+    return (new Differ(curr, goal, equal)).diff();
 }
 
 function substituteSubstitutions(edits: DiffEditScript) {
@@ -353,9 +359,12 @@ function substituteSubstitutions(edits: DiffEditScript) {
 }
 
 // OPTIMIZE: Take callbacks object instead of returning array of edits:
-function diff<T, U>(curr: Sized & Indexed<T>, goal: Sized & Indexed<U>, eq: (x: T, y: U) => boolean
+/** Compute the {@link EditScript} that would make curr have the same values (wrt. equal()) as goal.
+*/
+function diff<T, U>(
+    curr: Sized & Indexed<T>, goal: Sized & Indexed<U>, equal: (x: T, y: U) => boolean
 ): EditScript {
-    const edits = myersDiff(curr, goal, eq);
+    const edits = myersDiff(curr, goal, equal);
     substituteSubstitutions(edits);
     
     return edits;
