@@ -1,5 +1,5 @@
 export type {
-    IndexedObservable, IndexedSubscriber
+    IndexedObservable, IndexedSubscriber, ListBuilder
 };
 export {
     Vecnal,
@@ -34,37 +34,65 @@ import {Signal, NonNotifyingSignal, CheckingSubscribingSubscribeableSignal}
 // anyway until subscribers appear?
 
  // TODO: Already reject non-changes here:
+
+/** An object that can be notified of indexed value changes. */
 interface IndexedSubscriber<T> {
+    /** Called when value v is inserted at index i. */
     onInsert: (i: number, v: T) => void;
+    
+    /** Called when a value is removed at index i. */
     onRemove: (i: number) => void;
+    
     // TODO: onMove: (i: number, j: number) => void;
+    
+    /** Called when a value is replaced with v at index i. */
     onSubstitute: (i: number, v: T) => void;
 }
 
+ /** An object that can inform {@link IndexedSubscriber}s of changes to indexed values of type T. */
 interface IndexedObservable<T> {
+    /** Add an {@link IndexedSubscriber}. */
     addISubscriber: (subscriber: IndexedSubscriber<T>) => void;
     
+    /** Remove an {@link IndexedSubscriber}. */
     removeISubscriber: (subscriber: IndexedSubscriber<T>) => void;
     
+    
+    /** Notify all {@link IndexedSubscriber}s that v was inserted at index i. */
     notifyInsert: (i: number, v: T) => void;
+    
+    /** Notify all {@link IndexedSubscriber}s that a value was removed at index i. */
     notifyRemove: (i: number) => void;
+    
     // TODO: notifyMove: (i: number, j: number) => void;
+    
+    /** Notify all {@link IndexedSubscriber}s that a value was replaced with v at index i. */
     notifySubstitute: (i: number, /* TODO: Remove this param if possible: */ v: T, u: T) => void;
 }
 
+/** A builder for an Item list of type Coll (e.g. Coll = Array<Item>). */
 interface ListBuilder<Item, Coll> {
+    /** Add v to the list under construction. */
     push: (v: Item) => void;
     
+    /** Produce the final list. */
     build: () => Coll;
 }
 
 // TODO: `implements Iterable<T>`:
 // TODO: Ribbon cable -inspired name:
+/** A container of indexed values that change over time, can be reduced over and read  and the
+    changes subscribed to. A class instead of just an interface because the DOM module needs to
+    check object membership of this and instanceof is the most straightforward way while having to
+    concretely inherit from this should not cause issues for any reasonable implementation.  */
 abstract class Vecnal<T>
     implements Indexed<T>, Sized, Reducible<T>, IndexedObservable<T>
 {
     abstract size(): number;
     
+    /* TODO: Remove(?) since JS API:s typically are like `at()`; ok with problems storing
+       `undefined` */
+    /** Get the value at index i (or defaultValue if i is out of bounds). */
     abstract atOr(i: number, defaultValue: T): T;
     
     abstract reduce<U>(f: (acc: U, v: T) => U, acc: U): U;
@@ -79,29 +107,47 @@ abstract class Vecnal<T>
     
     // TODO: Optional `start` & `end`:
     // TODO: Negative indices and other such oddities (see `Array.prototype.slice`):
+    /** Create a derived {@link Vecnal} that only stores the elements of this between start
+        (inclusive) and end (exclusive) (i.e. start <= i < end). */
     slice(start: number, end: number): Vecnal<T> {
         return new SliceVecnal(this, start, end);
     }
     
+    /** Create a derived {@link Vecnal} whose elements are the elements of this transformed by f
+        (i.e. this.map(eq, f).at(i) = f(this.at(i))). If the derived vecnal receives a new value
+        substitution from this that does not change its (transformed) value wrt. equals() it will
+        not notify its subsribers of a substitution . */
     map<U>(equals: (x: U, y: U) => boolean, f: (v: T) => U): Vecnal<U> {
         return new MappedVecnal(equals, f, this);
     }
     
+    /** Create a derived {@link Vecnal} with only the elements from this for which f returns true.
+    */
     filter(f: (v: T) => boolean): Vecnal<T> { return new FilteredVecnal(f, this); }
     
+    /** Create a derived {@link Signal} that contains the current value of
+        this.reduce(f, accS.ref()) and that only notifies its subscribers if the reduced value
+        changes wrt. equals(). */
     reduceS<U>(equals: (x: U, y: U) => boolean, f: (acc: U, v: T) => U, accS: Signal<U>
     ): Signal<U> {
         return new ReducedSignal(equals, f, accS, this);
     }
     
+    /** Create a derived {@link Vecnal} whose values are the values of this in reverse order. */
     reverse(): Vecnal<T> { return new ReversedVecnal(this); }
     
     // TODO: Default comparator
     // TODO: `sortBy` (?):
+    /** Create a derived {@link Vecnal} whose values are the values of this sorted by the comparator
+        compare (as in {@link Array.sort}). */
     sort(compare: (x: T, y: T) => number): Vecnal<T> {
         return new SortedVecnal(this, compare);
     }
     
+    // TODO: Support an `equals` argument?
+    /** Create a derived {@link Signal} that contains the values of this collected into a Coll.
+        builders is a "list Builder Factory" function i.e. it is called to create a new ListBuilder
+        every time there is a change in this. */
     mux<Coll>(builders: () => ListBuilder<T, Coll>): Signal<Coll> {
         return this.reduceS(eq, (builder, v) => {
             builder.push(v);
@@ -235,6 +281,8 @@ class StableVecnal<T> extends NonNotifyingVecnal<T> {
     reduce<U>(f: (acc: U, v: T) => U, acc: U): U { return this.vs.reduce(f, acc); }
 }
 
+/** A {@link Vecnal} whose values are extracted from vs at time of construction and immutable
+    thereafter. */
 function stable<T>(vs: Reducible<T>): Vecnal<T> { return new StableVecnal(vs); }
 
 class SourceVecnal<T> extends CheckingSubscribeableVecnal<T> implements Spliceable<T> {
@@ -289,6 +337,8 @@ class SourceVecnal<T> extends CheckingSubscribeableVecnal<T> implements Spliceab
     }
 }
 
+/** Create a {@link Vecnal} whose values are extracted from vs at time of construction and can be
+    altered via the {@link Spliceable} interface. */
 function source<T>(equals: (x: T, y: T) => boolean, initVals: Reducible<T>
 ): Vecnal<T> & Spliceable<T> {
     return new SourceVecnal(equals, initVals);
@@ -818,6 +868,7 @@ class ConcatVecnal<T> extends SubscribingSubscribeableVecnal<T> {
     }
 }
 
+/** Create a {@link Vecnal} whose values are the values of vecnals concatenated. */
 function concat<T>(...vecnals: Vecnal<T>[]): Vecnal<T> { return new ConcatVecnal(vecnals); }
 
 class EmptyVecnal<T> extends NonNotifyingVecnal<T> {
@@ -832,6 +883,7 @@ class EmptyVecnal<T> extends NonNotifyingVecnal<T> {
     reduce<U>(_: (acc: U, v: T) => U, acc: U): U { return acc; }
 }
 
+/** Create a {@link Vecnal} that is always empty of values (size() === 0). */
 function empty<T>(): Vecnal<T> { return EmptyVecnal.INSTANCE as EmptyVecnal<T>; }
 
 class SingleElementVecnal<T> extends SubscribingSubscribeableVecnal<T>
@@ -875,6 +927,7 @@ class SingleElementVecnal<T> extends SubscribingSubscribeableVecnal<T>
     }
 }
 
+/** Create a {@link Vecnal} that always contains the single value (size() === 1) from signal. */
 function lift<T>(signal: Signal<T>): Vecnal<T> { return new SingleElementVecnal(signal); }
 
 class ReducedSignal<U, T> extends CheckingSubscribingSubscribeableSignal<U>
@@ -1404,6 +1457,7 @@ class ImuxVecnal<T> extends SubscribingSubscribeableVecnal<T>
     }
 }
 
+/** Create a {@link Vecnal} whose values are the values of the lists contained in input. */
 function imux<T>(equals: (x: T, y: T) => boolean,
     input: Signal<Reducible<T> & Sized & Indexed<T>>
 ): Vecnal<T> {

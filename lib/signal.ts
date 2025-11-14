@@ -28,7 +28,10 @@ interface Observable<T> {
     notify: (oldVal: T, newVal: T) => void;
 }
 
-/** Contains a value that changes over time and can read and the changes subscribed to. */
+/** Contains a value that changes over time and can read and the changes subscribed to. A class
+    instead of just an interface because the DOM module needs to check object membership of this
+    and instanceof is the most straightforward way while having to concretely inherit from this
+    should not cause issues for any reasonable implementation. */
 abstract class Signal<T> implements Deref<T>, Observable<T> {
     abstract ref(): T;
     
@@ -37,8 +40,8 @@ abstract class Signal<T> implements Deref<T>, Observable<T> {
     abstract notify(v: T, u: T): void;
     
     /** Create a derived signal whose value is always f(this.ref()).
-        If the derived signal receives a new value from this that does not change its value wrt.
-        equals() it will not notify its subscribers. */
+        If the derived signal receives a new value from this that does not change its (transformed)
+        value wrt. equals() it will not notify its subscribers. */
     map<U>(equals: (x: U, y: U) => boolean, f: (v: T) => U): Signal<U> {
         return new SinglyMappedSignal(equals, f, this);
     }
