@@ -5,6 +5,22 @@
 > incorporates proper signal chain resource management and layout jank reduction
 > via DOM mutation batching.
 
+## Building
+
+```sh
+> npm ci
+> npm run build
+```
+
+## Running
+
+```sh
+> npm run serve
+```
+
+The app is then found at `localhost:8000`. A server is necessary to allow importing ES6 modules in
+the browser.
+
 ## Resources
 
 - [Website]()

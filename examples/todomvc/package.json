@@ -1,0 +1,15 @@
+{
+  "type": "module",
+  "name": "vecnal-todomvc",
+  "version": "0.1.0",
+  "description": "RibbonCables TodoMVC demo",
+  "dependencies": {
+    "todomvc-app-css": "^2.0.0",
+    "todomvc-common": "^1.0.0"
+  },
+  "scripts": {
+    "build": "./build.sh",
+    "serve": "./serve.sh"
+  }
+}
+

@@ -2,9 +2,9 @@ export {Ctrl};
 
 import {Model} from "./model.js";
 
-import type {Reset} from "../../../lib/prelude.js";
-import type {Signal} from "../../../lib/signal.js";
-import type {Framer} from "../../../lib/dom.js";
+import type {Reset} from "../dist/prelude.js";
+import type {Signal} from "../dist/signal.js";
+import type {Framer} from "../dist/dom.js";
 
 // TODO: Limited versions for different components:
 class Ctrl {
