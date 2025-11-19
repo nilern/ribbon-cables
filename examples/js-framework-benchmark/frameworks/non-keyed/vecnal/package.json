@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "exit 0",
-    "build-prod": "./build-prod.sh && tsc"
+    "build-prod": "./build-prod.sh"
   }
 }
 

@@ -2,4 +2,5 @@
 
 mkdir -p dist
 cp ../../../../../lib/*.ts dist
+tsc
 
