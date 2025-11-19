@@ -1,8 +1,9 @@
 # RibbonCables • [TodoMVC](http://todomvc.com)
 
-> RibbonCables is a Typescript FRP Model-View library experiment primarily around signal
-> "vectorization". It also incorporates proper signal chain resource management and layout jank 
-> reduction via DOM mutation batching.
+> RibbonCables is a Typescript FRP Model-View library experiment primarily around
+> signal [imuxing](https://en.wikipedia.org/wiki/Inverse_multiplexer). It also
+> incorporates proper signal chain resource management and layout jank reduction
+> via DOM mutation batching.
 
 ## Resources
 
