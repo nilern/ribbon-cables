@@ -14,7 +14,8 @@ const config: JestConfigWithTsJest = {
   moduleNameMapper: {
     "^(\\.{1,2}/.*)\\.js$": "$1"
   },
-  moduleDirectories: ["node_modules"]
+  moduleDirectories: ["node_modules"],
+  testEnvironment: "jsdom"
 };
 
 export default config;
