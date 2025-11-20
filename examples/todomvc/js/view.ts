@@ -5,7 +5,7 @@ import {Todo, Model} from "./model.js";
 import {Ctrl} from "./controller.js";
 
 import type {Reset} from "../dist/prelude.js";
-import {ImmArrayAdapter, eq, str} from "../dist/prelude.js";
+import {eq, str} from "../dist/prelude.js";
 import type {Signal} from "../dist/signal.js";
 import * as signal from "../dist/signal.js";
 import type {Vecnal} from "../dist/vecnal.js";
@@ -258,8 +258,8 @@ function todosFooter(nodes: NodeFactory, ctrl: Ctrl, incompleteTodoCount: Signal
 function createUI(nodes: NodeFactory & Framer, ctrl: Ctrl, todoS: Signal<readonly Todo[]>,
     filterS: Signal<Filter>
 ): Element {
-    const visibleTodoS: Signal<ImmArrayAdapter<Todo>> = todoS.map2(eq,
-        (todos, filter) => new ImmArrayAdapter(todos.filter(filterFn(filter))), // OPTIMIZE
+    const visibleTodoS: Signal<readonly Todo[]> = todoS.map2(eq,
+        (todos, filter) => todos.filter(filterFn(filter)), // OPTIMIZE
         filterS);
     const incompleteTodoCount: Signal<number> =
         todoS.map(eq, (todos) => count(todos, (todo) => !todo.isComplete));

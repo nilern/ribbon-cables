@@ -1,7 +1,7 @@
 
 
 import type {Reset} from "../dist/prelude.js";
-import {eq, ImmArrayAdapter} from "../dist/prelude.js"; // HACK
+import {eq} from "../dist/prelude.js"; // HACK
 import type {Framer} from "../dist/dom.js";
 import * as dom from "../dist/dom.js";
 import type {NodeFactory, EventHandler} from "../dist/dom.js";
@@ -296,7 +296,7 @@ function createUI(
                 }))),
                 
         table(nodes, {
-            dataS: vec.imux(eq, modelS.map(eq, (model) => new ImmArrayAdapter(model.data))),
+            dataS: vec.imux(eq, modelS.map(eq, (model) => model.data)),
             selectedS,
             onRowClick: (id) => ctrl.selectRow(id),
             onRowDelete: id => ctrl.deleteRow(id)

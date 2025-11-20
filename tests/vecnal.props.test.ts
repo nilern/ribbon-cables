@@ -4,7 +4,7 @@ import {test as tst, fc} from '@fast-check/jest';
 import * as vec from '../lib/vecnal.js';
 
 import * as sig from '../lib/signal.js';
-import {eq, ImmArrayAdapter} from '../lib/prelude.js';
+import {eq} from '../lib/prelude.js';
 
 const maxLength = 100;
 
@@ -214,7 +214,7 @@ tst.prop({nats: fc.array(fc.nat(), {maxLength}), ops: fc.array(arbOp)})(
 tst.prop({usernames: fc.array(fc.string())})(
     '`imux` output is input elements',
     ({usernames}) => {
-        const usernameS = sig.stable(new ImmArrayAdapter(usernames));
+        const usernameS = sig.stable(usernames);
         const usernameZ = vec.imux(eq, usernameS);
         
         const vecnalUsernames = usernameZ.reduce((acc, username) => {
@@ -229,7 +229,7 @@ tst.prop({usernames: fc.array(fc.string())})(
 tst.prop({usernames: fc.array(fc.string(), {maxLength}), ops: fc.array(arbOp)})(
     '`imux` output after input modifications is still input elements',
     ({usernames, ops}) => {
-        const usernameS = sig.source(eq, new ImmArrayAdapter([...usernames]));
+        const usernameS = sig.source(eq, usernames);
         const usernameZ = vec.imux(eq, usernameS);
         usernameZ.addISubscriber({
             onInsert: (_, _1) => {},
@@ -245,7 +245,7 @@ tst.prop({usernames: fc.array(fc.string(), {maxLength}), ops: fc.array(arbOp)})(
                 if (op.index <= currentUsernames.length) {
                     const newUsernames = [...currentUsernames];
                     newUsernames.splice(op.index, 0, op.username);
-                    usernameS.reset(new ImmArrayAdapter(newUsernames));
+                    usernameS.reset(newUsernames);
                 }
                 break;
             
@@ -253,7 +253,7 @@ tst.prop({usernames: fc.array(fc.string(), {maxLength}), ops: fc.array(arbOp)})(
                 if (op.index < currentUsernames.length) {
                     const newUsernames = [...currentUsernames];
                     newUsernames.splice(op.index, 1);
-                    usernameS.reset(new ImmArrayAdapter(newUsernames));
+                    usernameS.reset(newUsernames);
                 }
                 break;
             
@@ -261,7 +261,7 @@ tst.prop({usernames: fc.array(fc.string(), {maxLength}), ops: fc.array(arbOp)})(
                 if (op.index < currentUsernames.length) {
                     const newUsernames = [...currentUsernames];
                     newUsernames[op.index] = op.username;
-                    usernameS.reset(new ImmArrayAdapter(newUsernames));
+                    usernameS.reset(newUsernames);
                 }
                 break;
             
@@ -274,7 +274,7 @@ tst.prop({usernames: fc.array(fc.string(), {maxLength}), ops: fc.array(arbOp)})(
             return acc;
         }, []);
         
-        expect(vecnalUsernames).toEqual(usernames);
+        expect(vecnalUsernames).toEqual(usernameS.ref());
     }
 );
 

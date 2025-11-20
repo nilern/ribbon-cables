@@ -8,8 +8,8 @@ export {
     concat
 };
 
-import type {Reset, Sized, Indexed, Spliceable, Reducible} from "./prelude.js";
-import {ImmArrayAdapter, eq} from "./prelude.js";
+import type {Reset, Sized, Lengthy, Indexed, Spliceable, Reducible} from "./prelude.js";
+import {eq} from "./prelude.js";
 import * as diff from "./diff.js"
 import type {Subscriber} from "./signal.js";
 import * as signal from "./signal.js";
@@ -1361,7 +1361,7 @@ class SortedVecnal<T> extends SubscribingSubscribeableVecnal<T>
     }
 }
 
-type ImuxableVal<T> = Reducible<T> & Sized & Indexed<T>;
+type ImuxableVal<T> = Reducible<T> & Lengthy & Indexed<T>;
 
 class ImuxVecnal<T> extends SubscribingSubscribeableVecnal<T>
     implements Subscriber<ImuxableVal<T>>
@@ -1370,12 +1370,12 @@ class ImuxVecnal<T> extends SubscribingSubscribeableVecnal<T>
     
     constructor(
         private readonly equals: (x: T, y: T) => boolean,
-        private readonly input: Signal<Reducible<T> & Sized & Indexed<T>>
+        private readonly input: Signal<ImuxableVal<T>>
     ) {
         super();
     }
     
-    private patch(newVs: Sized & Indexed<T>, edits: diff.EditScript) {
+    private patch(newVs: Lengthy & Indexed<T>, edits: diff.EditScript) {
         for (const edit of edits) {
             const i = edit.index;
                 
@@ -1402,7 +1402,7 @@ class ImuxVecnal<T> extends SubscribingSubscribeableVecnal<T>
             return this.vs.length;
         } else {
             // If `this` has no subscribers it does not watch deps either so `this.vs` could be stale:
-            return this.input.ref().size();
+            return this.input.ref().length;
             // OPTIMIZE: This combined with dep `reduce()`:s in ctor makes signal graph construction
             // O(signalGraphLength^2). That is unfortunate, but less unfortunate than the leaks that
             // would result from eagerly subscribing in ctor...
@@ -1418,7 +1418,7 @@ class ImuxVecnal<T> extends SubscribingSubscribeableVecnal<T>
             // If `this` has no subscribers it does not watch deps either so `this.vs` could be stale:
             const newVs = this.input.ref();
             
-            if (index >= newVs.size()) { return defaultValue; }
+            if (index >= newVs.length) { return defaultValue; }
             
             return newVs.at(index)!;
             // OPTIMIZE: This combined with dep `reduce()`:s in ctor makes signal graph construction
@@ -1452,15 +1452,13 @@ class ImuxVecnal<T> extends SubscribingSubscribeableVecnal<T>
     unsubscribeFromDeps() { this.input.removeSubscriber(this); }
     
     onChange(newVs: ImuxableVal<T>) {
-        const edits = diff.diff(new ImmArrayAdapter(this.vs), newVs, this.equals);
+        const edits = diff.diff(this.vs, newVs, this.equals);
         this.patch(newVs, edits);
     }
 }
 
 /** Create a {@link Vecnal} whose values are the values of the lists contained in input. */
-function imux<T>(equals: (x: T, y: T) => boolean,
-    input: Signal<Reducible<T> & Sized & Indexed<T>>
-): Vecnal<T> {
+function imux<T>(equals: (x: T, y: T) => boolean, input: Signal<ImuxableVal<T>>): Vecnal<T> {
     return new ImuxVecnal(equals, input);
 }
 

@@ -6,7 +6,7 @@ export {
     diff
 };
 
-import {Sized, Indexed} from "./prelude.js";
+import {Lengthy, Indexed} from "./prelude.js";
 
 // EUGENE W. MYERS: An O(ND) Difference Algorithm and Its Variations
 // 4b. A Linear Space Refinement
@@ -101,15 +101,15 @@ class Path {
 
 class Differ<T, U> {
     constructor(
-        private readonly curr: Sized & Indexed<T>,
-        private readonly goal: Sized & Indexed<U>,
+        private readonly curr: Lengthy & Indexed<T>,
+        private readonly goal: Lengthy & Indexed<U>,
         private readonly eq: (x: T, y: U) => boolean
     ) {}
     
     diff(): DiffEditScript {
         const edits: DiffEditScript = [];
         
-        const optPath = this.findPath(new Box(0, 0, this.curr.size(), this.goal.size()));
+        const optPath = this.findPath(new Box(0, 0, this.curr.length, this.goal.length));
         if (optPath) {
             this.walkSnakes(optPath, edits);
         }
@@ -326,7 +326,7 @@ class Differ<T, U> {
 }
 
 function myersDiff<T, U>(
-    curr: Sized & Indexed<T>, goal: Sized & Indexed<U>, equal: (x: T, y: U) => boolean
+    curr: Lengthy & Indexed<T>, goal: Lengthy & Indexed<U>, equal: (x: T, y: U) => boolean
 ): DiffEditScript {
     return (new Differ(curr, goal, equal)).diff();
 }
@@ -362,7 +362,7 @@ function substituteSubstitutions(edits: DiffEditScript) {
 /** Compute the {@link EditScript} that would make curr have the same values (wrt. equal()) as goal.
 */
 function diff<T, U>(
-    curr: Sized & Indexed<T>, goal: Sized & Indexed<U>, equal: (x: T, y: U) => boolean
+    curr: Lengthy & Indexed<T>, goal: Lengthy & Indexed<U>, equal: (x: T, y: U) => boolean
 ): EditScript {
     const edits = myersDiff(curr, goal, equal);
     substituteSubstitutions(edits);

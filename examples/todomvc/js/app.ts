@@ -6,7 +6,7 @@ import type {Filter} from "./view.js";
 import {createUI} from "./view.js";
 
 import type {Reset} from "../dist/prelude.js";
-import {ImmArrayAdapter, eq, str} from "../dist/prelude.js";
+import {eq, str} from "../dist/prelude.js";
 import type {Signal} from "../dist/signal.js";
 import * as signal from "../dist/signal.js";
 import * as dom from "../dist/dom.js";

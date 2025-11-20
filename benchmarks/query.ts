@@ -6,7 +6,7 @@ import {Vecnal, IndexedSubscriber} from '../lib/vecnal.js';
 import * as sig from '../lib/signal.js';
 import {Signal, Subscriber} from '../lib/signal.js';
 import type {Reset} from '../lib/prelude.js';
-import {ImmArrayAdapter, eq} from '../lib/prelude.js';
+import {eq} from '../lib/prelude.js';
 
 const suite = new Suite();
 
@@ -80,12 +80,7 @@ const initialUsers: readonly User[] = firstnames.reduce<User[]>((users, firstnam
 
 const userS: Signal<readonly User[]> & Reset<readonly User[]> =
     sig.source(eq, initialUsers);
-const userZ: Vecnal<User> = (() => {
-    const adaptedUserS = userS.map<ImmArrayAdapter<User>>(eq, (users) =>
-        new ImmArrayAdapter(users)
-    );
-    return vec.imux(eq, adaptedUserS);
-})();
+const userZ: Vecnal<User> = vec.imux(eq, userS);
 
 /* Approximately
 ```
@@ -121,8 +116,7 @@ suite.add('Initialize page signal of bonus user fullnames', (timer) => {
     timer!.start();
     const nameS = bonusUserFullnameS(userS);
     // Figure out changes like we would have to in order to minimize DOM manipulations:
-    const nameZ = vec.imux(eq,
-        nameS.map<ImmArrayAdapter<string>>(eq, (names) => new ImmArrayAdapter(names)));
+    const nameZ = vec.imux(eq, nameS);
     const subscriber: IndexedSubscriber<string> = {
         onInsert: (_, _1) => {},
         onRemove: (_) => {},
@@ -152,8 +146,7 @@ let updateeIndex = 0;
 suite.add('Update user in page signal of bonus user fullnames', (timer) => {
     const nameS = bonusUserFullnameS(userS);
     // Figure out changes like we would have to in order to minimize DOM manipulations:
-    const nameZ = vec.imux(eq,
-        nameS.map<ImmArrayAdapter<string>>(eq, (names) => new ImmArrayAdapter(names)));
+    const nameZ = vec.imux(eq, nameS);
     const subscriber: IndexedSubscriber<string> = {
         onInsert: (_, _1) => {},
         onRemove: (_) => {},

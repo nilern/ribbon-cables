@@ -4,17 +4,6 @@ import * as diff from '../lib/diff.js';
 
 import {eq} from '../lib/prelude.js';
 
-// HACK:
-class StringAdapter {
-    constructor(
-        private readonly str: string
-    ) {}
-    
-    size(): number { return this.str.length; }
-    
-    at(i: number): string { return this.str[i]; }
-}
-
 function patch(current: string, goal: string, edits: diff.EditScript): string {
     const result = [...current];
     
@@ -38,11 +27,7 @@ function patch(current: string, goal: string, edits: diff.EditScript): string {
 tst.prop({current: fc.string(), goal: fc.string()})(
     'patching `current` with edit script produces `goal`',
     ({current, goal}) => {
-        const edits = diff.diff(
-            new StringAdapter(current),
-            new StringAdapter(goal),
-            eq
-        );
+        const edits = diff.diff(current, goal, eq);
         const patched = patch(current, goal, edits);
         
         expect(patched).toEqual(goal);

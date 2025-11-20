@@ -1,9 +1,9 @@
 export type {
     Deref, Reset,
-    Sized, Indexed, IndexedMut, Spliceable,
+    Sized, Lengthy, Indexed, IndexedMut, Spliceable,
     Reducible
 };
-export {ImmArrayAdapter, id, eq, str};
+export {id, eq, str};
 
 /** An abstract read-only container for a value of type T. */
 interface Deref<T> {
@@ -21,6 +21,12 @@ interface Reset<T> {
 interface Sized {
     /** Get the current size. */
     size: () => number;
+}
+
+/** A collection with a `length` property. */
+interface Lengthy {
+    /** The current length. */
+    length: number;
 }
 
 /** A collection whose i:th element can be read in constant time. */
@@ -48,21 +54,6 @@ interface Spliceable<T> extends IndexedMut<T> {
 interface Reducible<T> {
     /** Reduce over the collection with f and initial accumulator acc. */
     reduce: <U>(f: (acc: U, v: T) => U, acc: U) => U;
-}
-
-// TODO: Make this unnecessary:
-/** A {@link Reducible}, {@link Sized} and {@link Indexed} wrapper for arrays. */
-class ImmArrayAdapter<T> implements Reducible<T>, Sized, Indexed<T> {
-    /** Wrap vs */
-    constructor(
-        private readonly vs: readonly T[]
-    ) {}
-    
-    reduce<U>(f: (acc: U, v: T) => U, acc: U): U { return this.vs.reduce(f, acc); }
-    
-    size(): number { return this.vs.length; }
-    
-    at(i: number): T { return this.vs[i]; }
 }
 
 /** The identity function (just returns its argument). */

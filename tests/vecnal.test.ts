@@ -977,7 +977,7 @@ describe('testing `reduceS`', () => {
 
 describe('testing `imux`', () => {
     test('Sized & Indexed<T> & Reducible<T>', () => {
-        const naturalS = sig.source(eq, new ImmArrayAdapter([1, 2, 3]));
+        const naturalS = sig.source(eq, [1, 2, 3]);
         const naturalZ = imux(eq, naturalS);
         
         expect(naturalZ.size()).toBe(3);
@@ -991,7 +991,7 @@ describe('testing `imux`', () => {
     });
     
     test('setAt() dep', () => {
-        const naturalS = sig.source(eq, new ImmArrayAdapter([1, 2, 3]));
+        const naturalS = sig.source(eq, [1, 2, 3]);
         const naturalZ = imux(eq, naturalS);
         const noChange = [-1, NaN];
         let change = noChange;
@@ -1001,7 +1001,7 @@ describe('testing `imux`', () => {
             onSubstitute: (i, v) => change = [i, v]
         });
         
-        naturalS.reset(new ImmArrayAdapter([1, 4, 3]));
+        naturalS.reset([1, 4, 3]);
         
         expect(naturalZ.size()).toBe(3);
         
@@ -1016,7 +1016,7 @@ describe('testing `imux`', () => {
         expect(change[1]).toBe(4);
         
         change = noChange;
-        naturalS.reset(new ImmArrayAdapter([1, 4, 3]));
+        naturalS.reset([1, 4, 3]);
         
         expect(naturalZ.size()).toBe(3);
         
@@ -1031,7 +1031,7 @@ describe('testing `imux`', () => {
     });
     
     test('insert() dep', () => {
-        const naturalS = sig.source(eq, new ImmArrayAdapter([1, 2, 3]));
+        const naturalS = sig.source(eq, [1, 2, 3]);
         const naturalZ = imux(eq, naturalS);
         let change = [-1, NaN];
         naturalZ.addISubscriber({
@@ -1040,7 +1040,7 @@ describe('testing `imux`', () => {
             onSubstitute: (_, _1) => {}
         });
         
-        naturalS.reset(new ImmArrayAdapter([1, 2, 4, 3]));
+        naturalS.reset([1, 2, 4, 3]);
         
         expect(naturalZ.size()).toBe(4);
         
@@ -1057,7 +1057,7 @@ describe('testing `imux`', () => {
     });
     
     test('remove() dep', () => {
-        const naturalS = sig.source(eq, new ImmArrayAdapter([1, 2, 3]));
+        const naturalS = sig.source(eq, [1, 2, 3]);
         const naturalZ = imux(eq, naturalS);
         let changeIndex = -1;
         naturalZ.addISubscriber({
@@ -1066,7 +1066,7 @@ describe('testing `imux`', () => {
             onSubstitute: (_, _1) => {}
         });
         
-        naturalS.reset(new ImmArrayAdapter([1, 3]));
+        naturalS.reset([1, 3]);
         
         expect(naturalZ.size()).toBe(2);
         
@@ -1080,10 +1080,10 @@ describe('testing `imux`', () => {
     });
     
     test('first subscribe (re)init', () => {
-        const naturalS = sig.source(eq, new ImmArrayAdapter([1, 2, 3]));
+        const naturalS = sig.source(eq, [1, 2, 3]);
         const naturalZ = imux(eq, naturalS);
         
-        naturalS.reset(new ImmArrayAdapter([1, 4, 3]));
+        naturalS.reset([1, 4, 3]);
         
         naturalZ.addISubscriber({
             onInsert: (_, _1) => {},
