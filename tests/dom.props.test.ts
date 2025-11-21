@@ -5,6 +5,9 @@
 import type {Arb} from 'fast-check';
 import {test as tst, fc} from '@fast-check/jest';
 
+import type {Op} from './test-util.ts';
+import {arbOpIn} from './test-util.ts';
+
 import * as dom from '../lib/dom.js';
 
 import * as sig from '../lib/signal.js';
@@ -86,43 +89,7 @@ tst.prop({nestMaterials: fc.array(arbNestMaterial)})(
 const arbTextVecnalMut: Arb<dom.Fragment> =
     fc.array(fc.string(), {maxLength}).map((vs) => vec.source(eq, vs));
 
-// TODO: DRY (wrt. `vecnal.props.test`):
-
-type Insertion = {
-    name: 'insert',
-    index: number,
-    username: string
-};
-
-type Removal = {
-    name: 'remove',
-    index: number
-};
-
-type Substitution = {
-    name: 'substitute',
-    index: number,
-    username: string
-};
-
-type Op = Insertion | Removal | Substitution;
-
-const arbOp: Arb<Op> = fc.oneof(
-    fc.record({
-        name: fc.constant('insert'),
-        index: fc.nat(maxLength),
-        username: fc.string()
-    }),
-    fc.record({
-        name: fc.constant('remove'),
-        index: fc.nat(maxLength)
-    }),
-    fc.record({
-        name: fc.constant('substitute'),
-        index: fc.nat(maxLength),
-        username: fc.string()
-    })
-);
+const arbOp: Arb<Op> = arbOpIn(maxLength);
 
 type VecnalHistory = {
     materials: Vecnal<dom.TextValue>,
