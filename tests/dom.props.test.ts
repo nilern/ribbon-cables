@@ -15,8 +15,6 @@ import {Signal} from '../lib/signal.js';
 import * as vec from '../lib/vecnal.js';
 import {eq, id} from '../lib/prelude.js';
 
-const maxLength = 100;
-
 type NestMaterial = dom.TextValue | dom.TextValue[] | Vecnal<dom.TextValue>;
 
 const arbTextSignal: Arb<Signal<string>> = fc.string().map(sig.stable);
@@ -28,8 +26,7 @@ const arbTextValue: Arb<dom.TextValue> = fc.oneof(
 
 const arbTextArray: arb<dom.TextValue[]> = fc.array(arbTextValue);
 
-const arbTextVecnal: Arb<dom.Fragment> =
-    fc.array(fc.string(), {maxLength}).map(vec.stable);
+const arbTextVecnal: Arb<dom.Fragment> = fc.array(fc.string()).map(vec.stable);
     
 const arbNestMaterial: Arb<NestMaterial> = fc.oneof(
     arbTextValue,
@@ -86,10 +83,8 @@ tst.prop({nestMaterials: fc.array(arbNestMaterial)})(
     }
 );
 
-const arbTextVecnalMut: Arb<dom.Fragment> =
-    fc.array(fc.string(), {maxLength}).map((vs) => vec.source(eq, vs));
-
-const arbOp: Arb<Op> = arbOpIn(maxLength);
+const arbTextVecnalMut: Arb<Vecnal<dom.TextValue>> = fc.array(fc.string())
+    .map((vs) => vec.source(eq, vs));
 
 type VecnalHistory = {
     materials: Vecnal<dom.TextValue>,
@@ -104,10 +99,11 @@ type NestHistory
 const arbNestHistory: Arb<NestHistory> = fc.oneof(
     arbTextValue,
     arbTextArray,
-    fc.record({
-        materials: arbTextVecnalMut,
-        ops: fc.array(arbOp)
-    })
+    arbTextVecnalMut
+        .chain((materials) => fc.record({
+            materials: fc.constant(materials),
+            ops: fc.array(arbOpIn(materials.size()))
+        }))
 );
 
 tst.prop({nestHistories: fc.array(arbNestHistory)})(

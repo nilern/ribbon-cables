@@ -1,5 +1,5 @@
 export type {Insertion, Removal, Substitution, Op};
-export {arbOpIn};
+export {arbOpIn, arbArrayHistory};
 
 import {fc} from '@fast-check/jest';
 
@@ -39,5 +39,12 @@ function arbOpIn(maxLength: number): Arb<Op> {
             'username': fc.string()
         })
     );
+}
+
+function arbArrayHistory<T>(vs: readonly T[]): Arb<{vs: T[], ops: Op[]}> {
+    return fc.record({
+        vs: fc.constant(vs),
+        ops: fc.array(arbOpIn(vs.length))
+    });
 }
 

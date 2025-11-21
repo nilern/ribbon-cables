@@ -2,16 +2,12 @@ import type {Arb} from 'fast-check';
 import {test as tst, fc} from '@fast-check/jest';
 
 import type {Op} from './test-util.ts';
-import {arbOpIn} from './test-util.ts';
+import {arbOpIn, arbArrayHistory} from './test-util.ts';
 
 import * as vec from '../lib/vecnal.js';
 
 import * as sig from '../lib/signal.js';
 import {eq} from '../lib/prelude.js';
-
-const maxLength = 100;
-
-const arbOp: Arb<Op> = arbOpIn(maxLength);
 
 class User {
     constructor(
@@ -39,14 +35,6 @@ const arbSlicing = fc.array(fc.string())
         end: fc.constant(end)
     }));
 
-const arbSlicingHistory = arbSlicing
-    .chain(({usernames, start, end}) => fc.record({
-        usernames: fc.constant(usernames),
-        start: fc.constant(start),
-        end: fc.constant(end),
-        ops: fc.array(arbOpIn(usernames.length))
-    }));
-
 tst.prop({slicing: arbSlicing})(
     '`slice` output is subrange of input',
     ({slicing}) => {
@@ -62,6 +50,14 @@ tst.prop({slicing: arbSlicing})(
         expect(vecnalSlice).toEqual(slice);
     }
 );
+
+const arbSlicingHistory = arbSlicing
+    .chain(({usernames, start, end}) => fc.record({
+        usernames: fc.constant(usernames),
+        start: fc.constant(start),
+        end: fc.constant(end),
+        ops: fc.array(arbOpIn(usernames.length))
+    }));
 
 tst.prop({history: arbSlicingHistory})(
     '`slice` output after input modifications is still subrange of input',
@@ -128,9 +124,9 @@ tst.prop({nats: fc.array(fc.nat())})(
     }
 );
 
-tst.prop({nats: fc.array(fc.nat(), {maxLength}), ops: fc.array(arbOp)})(
+tst.prop({history: fc.array(fc.nat()).chain(arbArrayHistory)})(
     '`map` output after input modifications is still input elements transformed',
-    ({nats, ops}) => {
+    ({history: {vs: nats, ops}}) => {
         const natS = vec.source(eq, nats);
         const nattieS = natS.map(eq, inc);
         nattieS.addISubscriber({
@@ -191,9 +187,9 @@ tst.prop({usernames: fc.array(fc.string())})(
     }
 );
 
-tst.prop({usernames: fc.array(fc.string(), {maxLength}), ops: fc.array(arbOp)})(
+tst.prop({history: fc.array(fc.string()).chain(arbArrayHistory)})(
     '`imux` output after input modifications is still input elements',
-    ({usernames, ops}) => {
+    ({history: {vs: usernames, ops}}) => {
         const usernameS = sig.source(eq, usernames);
         const usernameZ = vec.imux(eq, usernameS);
         usernameZ.addISubscriber({
@@ -259,14 +255,21 @@ tst.prop({inputs: fc.array(fc.array(fc.string()))})(
     }
 );
 
-const arbCatOp = fc.tuple(fc.nat(maxLength), arbOp);
+const catHistory = fc.array(fc.array(fc.string()))
+    .chain((inputs) => fc.record({
+        inputs: fc.constant(inputs),
+        ops: inputs.length > 0
+            ? fc.array(fc.nat(inputs.length - 1)
+                .chain((i) => fc.tuple(
+                    fc.constant(i),
+                    arbOpIn(inputs[i].length)
+                )))
+            : fc.constant([])
+    }));
 
-tst.prop({
-    inputs: fc.array(fc.array(fc.string(), {maxLength}), {maxLength}),
-    ops: fc.array(arbCatOp)
-})(
+tst.prop({history: catHistory})(
     '`concat` output after input modifications is still elements of inputs',
-    ({inputs, ops}) => {
+    ({history: {inputs, ops}}) => {
         const inputVecnals = inputs.map((input) => vec.source(eq, input));
         const catenated = vec.concat.apply(undefined, inputVecnals);
         catenated.addISubscriber({
@@ -334,9 +337,9 @@ tst.prop({nats: fc.array(fc.nat())})(
     }
 );
 
-tst.prop({nats: fc.array(fc.nat(), {maxLength}), ops: fc.array(arbOp)})(
+tst.prop({history: fc.array(fc.nat()).chain(arbArrayHistory)})(
     '`filter` output after input modifications is still valid elements of input',
-    ({nats, ops}) => {
+    ({history: {vs: nats, ops}}) => {
         const natS = vec.source(eq, nats);
         const oddS = natS.filter(isOdd);
         oddS.addISubscriber({
@@ -399,9 +402,9 @@ tst.prop({usernames: fc.array(fc.string())})(
     }
 );
 
-tst.prop({usernames: fc.array(fc.string(), {maxLength}), ops: fc.array(arbOp)})(
+tst.prop({history: fc.array(fc.string()).chain(arbArrayHistory)})(
     '`reverse` output after input modifications is still input reversed',
-    ({usernames, ops}) => {
+    ({history: {vs: usernames, ops}}) => {
         const usernameS = vec.source(eq, usernames);
         const revUsernameS = usernameS.reverse();
         revUsernameS.addISubscriber({
@@ -466,9 +469,9 @@ tst.prop({usernames: fc.array(fc.string())})(
     }
 );
 
-tst.prop({usernames: fc.array(fc.string(), {maxLength}), ops: fc.array(arbOp)})(
+tst.prop({history: fc.array(fc.string()).chain(arbArrayHistory)})(
     '`sort` output after input modifications is still input sorted',
-    ({usernames, ops}) => {
+    ({history: {vs: usernames, ops}}) => {
         const initialUsers = usernames.map((username, id) => new User(id, username));
         let currentId = initialUsers.length;
         
