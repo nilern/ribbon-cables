@@ -7,6 +7,8 @@ via DOM mutation batching.
 
 ## Intro to Signals
 
+TODO: Sources, sinks and intermediate nodes
+
 ```typescript
 import type {Reset} from "lib/prelude.js";
 import {eq} from "lib/prelude.js";
@@ -77,13 +79,13 @@ type User = {id: number, username: string};
 
 // Obviously these would be fetched from a server in practice:
 const users: Signal<readonly User[]> = sig.source(eq, [
-	{id: 0, username: "Foo"},
-	{id: 1, username: "Bar"}
+    {id: 0, username: "Foo"},
+    {id: 1, username: "Bar"}
 ]);
 
 const userIds: Signal<readonly number[]> = users.map( // `Signal.prototype.map`
-	eq,
-	(users) => users.map((user) => user.id) // `Array.prototype.map`
+    eq,
+    (users) => users.map((user) => user.id) // `Array.prototype.map`
 );
 ```
 
@@ -193,8 +195,8 @@ interface IndexedSubscriber<T> {
 }
 ```
 
-So now we can have an inversely muxed source sequence signal, effectively an array
-whose changes can be subscribed to:
+So now we can have an inversely muxed source sequence signal emitting those
+events, effectively an array whose changes can be subscribed to:
 
 ```typescript
 import type {Vecnal} from "lib/vecnal.js";
@@ -203,9 +205,9 @@ import * as vec from "lib/vecnal.js";
 const vs: Vecnal<number> = vec.source(eq, [1, 2, 3]);
 
 vs.addISubscriber({
-	onInsert: (i, v) => console.log("insert", v, "at index", i),
-	onRemove: (i) => console.log("delete at index", i),
-	onSubstitute: (i, v) => console.log("substitute", v, "at index", i)
+    onInsert: (i, v) => console.log("insert", v, "at index", i),
+    onRemove: (i) => console.log("delete at index", i),
+    onSubstitute: (i, v) => console.log("substitute", v, "at index", i)
 });
 
 vs.insert(3, 4); // Prints "insert 4 at index 3".
@@ -213,13 +215,13 @@ vs.remove(2); // Prints "remove at index 2".
 vs.setAt(2, 3); // Prints "substitute 3 at index 2"
 ```
 
-More interestingly we can derive Vecnals analogously to familiar FP sequence
-functions:
+More interestingly by not only emitting but also listening to such changes we
+can derive Vecnals analogously to familiar FP sequence functions:
 
 ```typescript
 const userz: Vecnal<User> = vec.source(eq, [
-	{id: 0, username: "Foo"},
-	{id: 1, username: "Bar"}
+    {id: 0, username: "Foo"},
+    {id: 1, username: "Bar"}
 ]);
 
 const userIdz: Vecnal<number> = userz.map(eq, (user) => user.id);
@@ -229,7 +231,108 @@ Not only is that shorter than the `Signal<readonly User[]>` version shown above
 (and for `map` specifically, perhaps less confusing) but we should also be able to
 make it more efficient.
 
-TODO: `diff` from Musistant
+`vec.source` is fine as a basic sequence model but inconvenient for more complex
+operations that might feature reading from the model as well as writing to it or
+bulk changes, perhaps of a transactional nature (although extending that
+transactionality to the signal graph and DOM would require the same machinery
+as preventing "glitches", see below). For example removing all "bot" users:
+
+```typescript
+function isBot(user: User): boolean { return user.username.includes("b0t"); }
+
+// `Signal`:
+users.reset(users.ref().filter((user) => !isBot(user)));
+
+// `Vecnal`:
+for (let i = 0; i < userz.size(); ++i) {
+    if (isBot(userz.at(i))) {
+        userz.remove(i);
+    }
+}
+```
+
+The `Signal` version is quite clean and could be cleaned up even further by
+adding `Signal.prototype.swap`, effectively an in-place `map`
+(`users.swap((users) => users.filter...`). The `Vecnal` version had to resort
+to old-school imperative code, how barbaric. The loop could be cleaned up with
+iterators (too complicated to bother implementing at this point) or `reduce`
+(which is implemented and much used internally but not everyone is comfortable
+reading).
+
+The best of both worlds would be having the canonical model just be a
+`Signal<readonly User[]>` to allow arbitrary sequence processing in your
+preferred style but being able to adapt it to be used as a `Vecnal` to only hit
+the DOM with the necessary edit distance operations:
+
+```typescript
+const usersz: Vecnal<User> = vec.imux(eq, users);
+```
+
+Now if we remove the bots from `users` as above, `usersz` will infer a necessary
+set (actually a minimal set, as we shall see) of edit distance operations
+(presumably deletions in this case) and emit them in sequence.
+
+Magic? No, just the [Myers Diff](http://www.xmailserver.org/diff2.pdf). (There
+is no magic in programming and if you are relying blindly on something "magical"
+you are in DANGER). The quintessential edit distance calculation and edit script
+generation algorithms are refinements of a dynamic programming approach, which
+is quadratic (more precisely *O(nm)* since the two input sequences can have
+different lengths *n* and *m*). I chose the Myers diff because by the ingenous
+transformation of the problem to a search through the space of edit script
+
+> a simple O(ND) time and space algorithm is developed where N is the sum of the
+> lengths of A and B and D is the size of the minimum edit script for A and B.
+> The algorithm performs well when differences are small (sequences are
+> similar) and is consequently fast in typical applications.
+
+So its worst-case (delete all elements of *A* and insert all elements of *B*)
+complexity is actually no better than the dynamic programming approach. But in
+the typical case where we change only a handful of elements or just one it can
+be **much** more efficient in both time and space!
+
+The Myers diff does not consider substitutions but I added a simple edit script
+[peephole optimizer](https://en.wikipedia.org/wiki/Peephole_optimization) to
+fuse deletion-insertion (actually insertion-deletion) pairs into substitutions.
+
+Actually the full story is that in the spring (of 2025) I was building a desktop
+app (how quaint!) for music composition. I wanted its canonical music model of
+melodies (and block chords) to be independent of the clutter of barlines and
+ties that make it easier for score readers to keep in time but annoy composers
+because e.g. simply rhythmically displacing a melody can make its rhythmic
+notation appear quite different. (Although Dorico seems to take such an
+approach, overall it is still fundamentally a notation editor and only
+incidentally a composition tool.)
+
+Having long been enamoured with compilers (especially [functional](https://www.amazon.com/exec/obidos/ASIN/052103311X/acmorg-20)
+[ones](https://andykeep.com/pubs/dissertation.pdf) <3) my first instinct was to
+create a pipeline of intermediate representation transformations. When 
+researching music notation rendering libraries and later (after deciding to 
+create my own (for QML)) music notation spacing and line splitting, I found that
+such a "compilation" approach was [tried and true](https://github.com/grame-cncm/guidolib/blob/dev/doc/papers/kai_renz_diss.pdf)
+at least in [Guido Engine](https://guidodoc.grame.fr/).
+
+But since I was building a GUI editor instead of a batch compiler like
+[Lilypond](https://lilypond.org/) I needed to diff the end results with the
+previous ones to emit the changes to the score's QML tree (via the
+aforementioned `QAbstractItemModel`). And that is where I actually implemented
+the Myers diff, in C++ and for this project I just ported that to Typescript,
+aided by new robust tests more than a proper recollection of the algorithm. If I
+had gotten obsessed with game engines instead of compilers deep in the past I
+would have probably just rendered a full frame with raw OpenGL instead and we
+would not be here in this README.
+
+I even found an evocative name for the diffing node here,
+[inverse multiplexing](https://en.wikipedia.org/wiki/Inverse_multiplexer). We
+also have the inverse operation, plain multiplexing as `Vecnal.prototype.mux`
+(which unlike `imux` can be a method because I wanted to keep `Vecnal` in a
+separate module and for that to depend on the signal module instead of the other
+way around). Aside from the combination of efficiency and convenience discussed
+at length above the API would seem rather incomplete without both of those
+conversions. Compared to `imux` (and most `Vecnal` operations), multiplexing is
+almost trivial; just re-collect all the `Vecnal` elements into a new sequence on
+receiving any edit.
+
+TODO: Mistletoe(?)
 
 TODO: disappointing perf (consider `Array.prototype.splice`, index mapping etc.),
 not worth the complexity
