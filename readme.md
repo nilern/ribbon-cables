@@ -339,7 +339,87 @@ TODO: Mistletoe(?)
 TODO: disappointing perf (consider `Array.prototype.splice`, index mapping etc.),
 not worth the complexity
 
+## Reactive DOM Nodes
+
+RibbonCables DOM nodes are created via a `NodeFactory`. A Factory is needed to
+support batching DOM changes on `requestAnimationFrame` (see below) while
+allowing use cases where multiple RibbonCables applications (applets?) exist
+independently on the same page. In all my example code I parameter inject the
+`NodeFactory` because I am used to that after writing so much Rust. But avoiding
+that hassle by making the factory global to an application would not cause the
+RibbonCables *library* to have shared global state (and could certainly not
+cause threading issues).
+
+Many parts of DOM nodes are actually not reactive, so at the limit we can create
+entirely passive nodes:
+
+```typescript
+import * as dom from "lib/dom.js";
+import type {NodeFactory} from "lib/dom.js";
+
+function usersTableHead(nodes: NodeFactory): Node {
+    return nodes.el("thead", {},
+        nodes.el("tr", {},
+            nodes.el("td", {}, "DB ID"),
+            nodes.el("td", {}, "Username")));
+}
+```
+
+Note how string children are automatically converted to `Text` nodes.
+`NodeFactory` does also have an explicit `text` method to create `Text`s but
+that is rarely needed in practice.
+
+Of course we need more than just a less verbose interface to create DOM nodes.
+Node properties can also be bound to `Signal`s and `Signal<string>` children are
+converted to reactive `Text` nodes:
+
+```typescript
+function userRow(nodes: NodeFactory, userS: Signal<User>): Node {
+    return nodes.el("tr", {},
+        nodes.el("td", {}, userS.map(eq, (user) => user.id.toString()),
+        nodes.el("td", {}, userS.map(eq, (user) => user.username)));
+}
+```
+
+How about `Vecnal`s? Well, `forVecnal` takes a `Vecnal<T>` and a view function
+of type `(vS: Signal<T>) => dom.ChildValue` and returns a value that `el` can
+use to create and update a list of children:
+
+```typescript
+function usersTable(nodes: NodeFactory, userZ: Vecnal<User>): Node {
+    return nodes.el("table", {},
+        usersTableHead(nodes),
+                
+        nodes.el("tbody", {},
+            nodes.forVecnal(userZ, (userS) => userRow(nodes, userS))));
+}
+```
+
+So when a value is inserted into or removed from the `Vecnal` a new child node
+also gets inserted into the parent. In order to avoid needlessly discarding and
+recreating DOM child trees, substitutions instead cause just the view function
+argument (e.g. `userS`) to be set to the new value.
+
+To avoid memory and update leaks (see resource management section below)
+reactive DOM nodes need to behave differently based on whether they are
+"mounted" i.e. connected to the visible DOM tree or not. Making those guarantees
+requires a lot of plumbing in the library but library users just need to
+remember to insert their application root node with the augmented version of
+`appendChild`, `removeChild`, `insertBefore` or `replaceChild` supplied in the
+`dom` module:
+
+```typescript
+const nodes = new dom.NodeManager();
+const ui = usersTable(nodes, userz);
+{
+    const body = document.body;
+    dom.insertBefore(body, ui, body.children[0]);
+}
+```
+
 ## Signal Chain Resource Management
+
+## Avoiding UI Jank by Batching DOM Updates
 
 ## Goals
 
