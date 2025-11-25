@@ -68,7 +68,7 @@ cascading:
 counter.reset(counter.ref()); // Does not print anything or inform `countStr`.
 ```
 
-## Inverse Multiplexing of Sequence Signals
+## Fused Sequence Signal Protocol
 
 Having worked on a number of [Re-Frame](https://day8.github.io/re-frame/) apps I
 noticed that most signals actually contain sequential collections and derived 
@@ -230,6 +230,8 @@ const userIdz: Vecnal<number> = userz.map(eq, (user) => user.id);
 Not only is that shorter than the `Signal<readonly User[]>` version shown above
 (and for `map` specifically, perhaps less confusing) but we should also be able to
 make it more efficient.
+
+## Inverse Multiplexing of Signals
 
 `vec.source` is fine as a basic sequence model but inconvenient for more complex
 operations that might feature reading from the model as well as writing to it or
