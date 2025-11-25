@@ -231,7 +231,7 @@ Not only is that shorter than the `Signal<readonly User[]>` version shown above
 (and for `map` specifically, perhaps less confusing) but we should also be able to
 make it more efficient.
 
-## Inverse Multiplexing of Signals
+### Inverse Multiplexing of Signals
 
 `vec.source` is fine as a basic sequence model but inconvenient for more complex
 operations that might feature reading from the model as well as writing to it or
@@ -418,6 +418,86 @@ const ui = usersTable(nodes, userz);
 ```
 
 ## Signal Chain Resource Management
+
+An `(Indexed)Observable` needs to keep a list of subscribers in order to notify
+them of changes. But this becomes an issue when some of those subscribers become
+unreachable from the rest of the program. If at that point they are still
+reachable through some observables they will not be reclaimed by the garbage
+collector and so their memory will effectively leak.
+
+"Effectively" because from the perspective of the JS runtime that is technically not memory leak; that would be a GC bug. But from the perspective of the
+application, library and TypeScript the only way those subscribers are reached
+is when the observable sends them updates that also probably either leak
+uselessly, wasting even more memory and CPU time or keep causing side effects
+that should have already stopped occurring. And subscribers can also have
+subscribers of their own and so on, forming even large signal DAG:s leaking
+memory and updates.
+
+Clearly the solution to these issues is to unsubscribe from observables when the
+subscriber stops being used for anything else. In the case of reactive DOM nodes
+that should happen when the node (or its ancestor) gets detached from the
+visible DOM (i.e. the `document` node). Reusing React terminology I call this
+combination of detaching and unsubscribing **unmounting**. Intermediate nodes
+such as those created by `Signal.prototype.map` should unsubscribe as soon as
+their own subscriber count drops to zero (similar to the cascades of memory
+releases when reference counts are zeroed in reference counting systems).
+
+The unsubscribing need not only happen at points where a [disposer](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/using)
+(like a C++ destructor) should run. Intermediate signal nodes often gain and
+lose subscribers, including their final one and even unmounted DOM trees can
+be remounted. So subscribers should (re)subscribe whenever updates (again?)
+become useful to update sinks and unsubscribe whenever that usefulness ends
+(perhaps only temporarily).
+
+All of that is fairly straightforward resource management, very familiar at
+least to C++ and Rust programmers. But naïve FRP implementations typically
+just subscribe to dependencies straight away when a signal node is created and,
+if you are lucky, unsubscribe in the destructor.
+
+### Lazy Initialization of Signal Values
+
+But not subscribing in intermediate signal constructors caused signal DAG
+initialization to take time quadratic to its depth: when a node was created
+its subscriberless dependencies had to recompute their values from their own
+dependencies and so on instead of just providing their cached value as in the
+abscence of updates that cache was probably stale.
+
+> There are only two hard things in Computer Science: cache invalidation,
+> naming things and off-by-one errors.
+
+I was able to get rid of that problem by deferring that initialization of
+intermediate nodes to when they get their first subscriber. At that point if
+they first subscribe to their dependencies the dependencies' caches are then
+guaranteed to be up to date. Of course that requires the signal nodes to have
+special uninitialized states but those states occur exactly when the node has
+zero subscribers, which we already had to check for anyway.
+
+### Lazy Initialization of DOM Trees
+
+Another issue was the initialization of unmounted reactive DOM trees. Initially
+I just built the tree by reading from the signals it was depending on but
+deferred subscribing to the signals until mount. This left a window of time
+between initialization and mount where any updates to the signals would go
+unnoticed by the unmounted DOM tree.
+
+In the case of normal signals the issue was maybe not that big; they could just
+be re-read on mount. Potentially inefficient but properly deferring the
+initialization to mount could also have a lot of overhead (often deferring
+things to the last possible moment actually takes a lot of resources; that is
+why Haskell has [strictness analysis](https://en.wikipedia.org/wiki/Strictness_analysis)).
+
+But in the case of `Vecnal`s and `forVecnal` not only was the creation of entire
+unusable DOM sub-forests much more wasteful, `forVecnal` was actually quite
+broken. Specifically the signals given to the `forVecnal` view argument needed
+to track an element of the `Vecnal` at some index. But that index actually
+needed to change if elements got inserted to or removed from the `Vecnal` before
+that position. And obviously (in hindsight) that index tracking was not
+happening during the aforementioned window of lost updates.
+
+So I made the reactive DOM trees avoid not only subscribing to their `Vecnal`
+and other signal dependencies but also avoid even reading from those
+dependencies on creation. So only on mount to the visible DOM do they fully fold
+out like some nifty piece of tiny house furniture.
 
 ## Avoiding UI Jank by Batching DOM Updates
 
