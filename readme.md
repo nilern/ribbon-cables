@@ -409,7 +409,7 @@ remember to insert their application root node with the augmented version of
 `dom` module:
 
 ```typescript
-const nodes = new dom.NodeManager();
+const nodes = new dom.NodeManager(); // Implements `NodeFactory`
 const ui = usersTable(nodes, userz);
 {
     const body = document.body;
@@ -500,6 +500,68 @@ dependencies on creation. So only on mount to the visible DOM do they fully fold
 out like some nifty piece of tiny house furniture.
 
 ## Avoiding UI Jank by Batching DOM Updates
+
+To ensure a pleasant end user experience we should avoid causing UI "jank" i.e.
+low or inconsistent frame rates. A UI library can enable smooth applications by
+batching DOM updates to minimize the amount of reflows and repaints the browser
+will undertake and performing those updates on `requestAnimationFrame` to
+avoid disturbing the steadiness of frame flow.
+
+Since RibbonCables performs those updates under the hood it is actually quite
+straightforward to just collect them into an array instead of performing them
+immediately and then applying that batch to the DOM later. There are just a few
+details to specify:
+
+1. Where to keep the array and how can update appenders access it? As alluded to
+   earlier I wanted to avoid having that mutable data be global to the library.
+   So that is why `dom.NodeManager` exists; it can hold the updates and give
+   reactive nodes a reference to itself on construction while acting as a
+   `NodeFactory`.
+2. How to represent the unapplied updates? At least for now thunks
+   (`() => void`) are sufficient but for maximum debuggability (and perhaps
+   some unforeseen advanced optimizations) we might want to properly reify them
+   as data records (like a [CEK machine](https://en.wikipedia.org/wiki/CEK_Machine)
+   reifies continuations).
+3. When is an update batch considered full and should be scheduled to be
+   applied? I chose to make this explicit by having `dom.NodeManager` implement
+   yet another interface `dom.Framer` with a method `frame` that takes yet another
+   thunk, calls it and then schedules the updates generated during that call to be
+   applied. This cycle could be integrated into source signal updates but `frame`
+   allows updating multiple source signals per update batch (sort of a transaction
+   but to have any signal DAG "transaction guarantees" we would need the
+   glitch-preventing algorithms, see lower). I also like that it is explicit and
+   avoids tightly coupling signals to the update mechanism.
+
+The lazy initialization of reactive DOM subtrees also adds a slight complication;
+when a reactive subtree is mounted its initialization completion gets triggered,
+generating new updates (including further subtree creations and mountings) that
+should be applied "immediately". But assuming that the same "frame" is immediate
+enough we can actually account for those updates simply by using an outdated naïve
+loop
+
+```typescript
+for (let i = 0; i < this.updates.length; ++i) {
+```
+
+instead of the usual
+
+```typescript
+for (const update of this.updates) {
+```
+
+which apparently is not guaranteed to heed updates to the array length during
+iteration (the dreaded [iterator invalidation](https://en.cppreference.com/w/cpp/container.html#Iterator_invalidation) (but at least JS is memory-safe!)) or my
+usual for loops that need to be indexed for some other reason (e.g. need to skip
+elements by `i += 2` instead of `++i`):
+
+```typescript
+/* Cache length manually since compilers may not inline enough to prove that it
+ * cannot change during the loop. In this case the length *does* change so doing
+ * this would cause the same bug as iterator invalidation (but at least it would
+ * be entirely certain and very explicit...): */
+const len = this.updates.length;
+for (let i = 0; i < len; ++i) {
+```
 
 ## Goals
 
