@@ -75,23 +75,59 @@ noticed that most signals actually contain sequential collections and derived
 signals are created with the usual FP sequence functions (`map`, `filter` etc.):
 
 ```typescript
-type User = {id: number, username: string};
+type User = {
+	readonly id: number,
+	readonly firstname: string,
+    readonly lastname: string,
+    readonly bonusProgram: boolean,
+    readonly bonusPoints: number
+};
+
+function compareUsersByName(user1: User, user2: User): number {
+    const ordering = user1.lastname.localeCompare(user2.lastname);
+    return ordering !== 0
+        ? ordering
+        : user1.firstname.localeCompare(user2.firstname);
+}
+
+function userFullname(user: User): string {
+    return user.firstname + ' ' + user.lastname;
+}
 
 // Obviously these would be fetched from a server in practice:
-const users: Signal<readonly User[]> = sig.source(eq, [
-    {id: 0, username: "Foo"},
-    {id: 1, username: "Bar"}
+const userS: Signal<readonly User[]> = sig.source(eq, [
+    {
+        id: 0,
+        firstname: "Maria",
+        lastname: "Korhonen",
+        bonusProgram: true,
+        bonusPoints: 5
+    },
+    {
+        id: 1,
+        firstname: "Juhani",
+        lastname: "Virtanen",
+        bonusProgram: false,
+        bonusPoints: 0
+    }
 ]);
 
-const userIds: Signal<readonly number[]> = users.map( // `Signal.prototype.map`
-    eq,
-    (users) => users.map((user) => user.id) // `Array.prototype.map`
-);
+const bonusUserFullnameS: Signal<readonly string[]> = userS
+        .map<readonly User[]>(eq, (users) =>
+            users.filter((user) => user.bonusProgram))
+        .map<readonly User[]>(eq, (users) => {
+            const users_ = [...users];
+            users_.sort(compareUsersByName);
+            return users_;
+        })
+        .map<readonly string[]>(eq, (users) => // `Signal.prototype.map`
+            users.map(userFullname)) // `Array.prototype.map`
+        .map(eq, (fullnames) => fullnames.slice(30, 40));
 ```
 
 I thought such signal chains might be quite inefficient since most changes would
 concern only a minority of `users` but the derived signals need to process full
-collections any way.
+collections anyway.
 
 Furthermore Re-Frame is a framework for [Reagent](https://reagent-project.github.io/)
 which in turn is a [React](https://react.dev/) wrapper. So changing a minority
@@ -219,15 +255,31 @@ More interestingly by not only emitting but also listening to such changes we
 can derive Vecnals analogously to familiar FP sequence functions:
 
 ```typescript
-const userz: Vecnal<User> = vec.source(eq, [
-    {id: 0, username: "Foo"},
-    {id: 1, username: "Bar"}
+const userZ: Vecnal<User> = vec.source(eq, [
+    {
+        id: 0,
+        firstname: "Maria",
+        lastname: "Korhonen",
+        bonusProgram: true,
+        bonusPoints: 5
+    },
+    {
+        id: 1,
+        firstname: "Juhani",
+        lastname: "Virtanen",
+        bonusProgram: false,
+        bonusPoints: 0
+    }
 ]);
 
-const userIdz: Vecnal<number> = userz.map(eq, (user) => user.id);
+const bonusUserFullnameZ: Vecnal<string> = userZ
+        .filter((user) => user.bonusProgram)
+        .sort(compareUsersByName)
+        .map<string>(eq, userFullname)
+        .slice(30, 40);
 ```
 
-Not only is that shorter than the `Signal<readonly User[]>` version shown above
+Not only is that shorter than the `Signal<readonly string[]>` version shown above
 (and for `map` specifically, perhaps less confusing) but we should also be able to
 make it more efficient.
 
