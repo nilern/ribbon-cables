@@ -615,6 +615,21 @@ const len = this.updates.length;
 for (let i = 0; i < len; ++i) {
 ```
 
+## Correctness
+
+A secondary goal of this project was for me to learn Typescript and I quickly did.
+[My inner type theorist](https://urn.fi/URN:NBN:fi:tuni-202011188069) is not
+impressed (Covariant arrays? That is... unsound!) but I have to admit it is much
+better than not having static typing at all. Dealing with static type errors
+up front may feel tedious at the time but I much prefer it to desperate debugging
+sessions or writing tons of trivial tests.
+
+Speaking of tons of tests, RibbonCables has very good unit test coverage,
+especially for an experiment. And on top of that there are property-based tests
+which indeed found some fairly rarely occurring bugs in the more convoluted (pun
+accidental!) signal implementations like `Vecnal.prototype.filter` and
+`Vecnal.prototype.sort`.
+
 ## Goals
 
 * Dev UX
