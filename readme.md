@@ -112,6 +112,12 @@ const userS: Signal<readonly User[]> = sig.source(eq, [
     }
 ]);
 
+/* Approximately
+ * `select firstname + ' ' + lastname
+ * from users
+ * where bonusProgram
+ * order by lastname, firstname
+ * limit 10 offset 30;` */
 const bonusUserFullnameS: Signal<readonly string[]> = userS
         .map<readonly User[]>(eq, (users) =>
             users.filter((user) => user.bonusProgram))
@@ -629,6 +635,31 @@ especially for an experiment. And on top of that there are property-based tests
 which indeed found some fairly rarely occurring bugs in the more convoluted (pun
 accidental!) signal implementations like `Vecnal.prototype.filter` and
 `Vecnal.prototype.sort`.
+
+## Performance
+
+### Is Fusion Faster?
+
+Disappointingly, according to the microbenchmarks in benchmarks/query.ts,
+`bonusUserFullnameZ` seems to actually be *slower* than `bonusUserFullnameS` (the
+latter with an added `imux` at the end since such a diff would be required to
+update the DOM based on a non-fused sequence signal).
+
+As alluded to earlier, some `Vecnal`s like `filter` and `sort` are rather complex,
+needing to maintain index mappings. And the initial recursive merge sort followed
+by a slightly cache-aware binary-to-linear search in my `sort` is probably far
+inferior to the algorithm in `Array.prototype.sort` (perhaps a [Powersort](https://en.wikipedia.org/wiki/Powersort)
+like in Python).
+
+But I suspect that the main reason is that although `Vecnal`s avoid redundantly
+calling their function arguments on every change for every element, insertions and
+deletions require splicing into or from internal arrays and
+`Array.prototype.splice` takes linear time. [RRB Vectors](https://www.cs.purdue.edu/homes/rompf/papers/stucki-icfp15.pdf)
+promised splicing in *O(log32(n))* time but looking into it any practical benefit
+would only start manifesting at thousands of elements, which most reasonable UI:s
+do not require.
+
+### Overall Framework Viability
 
 ## Goals
 
