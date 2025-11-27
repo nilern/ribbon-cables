@@ -659,7 +659,29 @@ promised splicing in *O(log32(n))* time but looking into it any practical benefi
 would only start manifesting at thousands of elements, which most reasonable UI:s
 do not require.
 
+In conclusion I would say that `Vecnal`s are not worth their occasionally
+considerable complexity. But basing DOM updates on a Myers diff of the underlying
+data should still be a solid approach.
+
 ### Overall Framework Viability
+
+I also implemented [js-framework-benchmark](https://github.com/krausest/js-framework-benchmark)
+for RibbonCables (examples/js-framework-bencmark/frameworks/non-keyed/vecnal).
+Seems that on average RibbonCables performs 150% slower than their "baseline"
+VanillaJS implementation but only 5% slower than the React Hooks one (a more
+realistic baseline for what is in use today). So despite `Vecnal`s seeming like
+a dead end, the libary overall exhibits very usable performance.
+
+It is rather amusing to be roughly on par with React Hooks which has had years of
+sophisticated optimization poured into it by Facebook when all the "optimization"
+I did was in the spirit of [Dybvig's](https://doi.org/10.1145/1160074.1159805)
+
+> As I tell my compiler students now, there is a fine line between "optimization"
+> and "not being stupid."
+
+On the other hand, "lies, damned lies and bechmarks". Probably
+js-framework-benchmark is not fully representative of real-world apps. Surely
+Facebook would gladly tell you as much, waving their bloated, monstrous frontends.
 
 ## Goals
 
