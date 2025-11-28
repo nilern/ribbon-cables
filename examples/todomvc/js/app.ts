@@ -1,6 +1,7 @@
 export {model, controller};
 
 import {Model} from "./model.js";
+import * as storage from "./storage.js";
 import {Ctrl} from "./controller.js";
 import type {Filter} from "./view.js";
 import {createUI} from "./view.js";
@@ -22,7 +23,7 @@ interface Router {
 
 const createRouter = (window as {[k: string]: any})["Router"] as (routes: Routes) => Router;
 
-const model = signal.source(eq, new Model()); // Global for REPL testing
+const model = signal.source(eq, storage.tryLoad() || new Model()); // Global for REPL testing
 
 // Global for REPL testing:
 const filterS: Signal<Filter> & Reset<Filter> = signal.source<Filter>(eq, "all");

@@ -1,6 +1,7 @@
 export {Ctrl};
 
 import {Model} from "./model.js";
+import * as storage from "./storage.js";
 
 import type {Reset} from "../dist/prelude.js";
 import type {Signal} from "../dist/signal.js";
@@ -10,44 +11,36 @@ import type {Framer} from "../dist/dom.js";
 class Ctrl {
     constructor(
         private readonly framer: Framer,
-        private readonly model: Signal<Model> & Reset<Model>
+        private readonly modelS: Signal<Model> & Reset<Model>
     ) {}
     
-    // TODO: `this.model.swap(...)`:
+    private commit(newModel: Model) {
+        storage.save(newModel);
+        
+        this.framer.frame(() => this.modelS.reset(newModel));
+    }
     
     addTodo(text: string, isComplete = false) {
-        this.framer.frame(() =>
-            this.model.reset(this.model.ref().withTodo(text, isComplete))
-        );
+        this.commit(this.modelS.ref().withTodo(text, isComplete));
     }
     
     setIsComplete(id: number, isComplete: boolean) {
-        this.framer.frame(() =>
-            this.model.reset(this.model.ref().withTodoCompleted(id, isComplete))
-        );
+        this.commit(this.modelS.ref().withTodoCompleted(id, isComplete));
     }
     
     setText(id: number, text: string) {
-        this.framer.frame(() =>
-            this.model.reset(this.model.ref().withTodoText(id, text))
-        );
+        this.commit(this.modelS.ref().withTodoText(id, text));
     }
     
     clearTodo(id: number) {
-        this.framer.frame(() =>
-            this.model.reset(this.model.ref().withoutTodo(id))
-        );
+        this.commit(this.modelS.ref().withoutTodo(id));
     }
     
     toggleAll(areCompleted: boolean) {
-        this.framer.frame(() =>
-            this.model.reset(this.model.ref().withAllCompleted(areCompleted))
-        );
+        this.commit(this.modelS.ref().withAllCompleted(areCompleted));
     }
     
     clearCompleteds() {
-        this.framer.frame(() =>
-            this.model.reset(this.model.ref().withoutCompleteds())
-        );
+        this.commit(this.modelS.ref().withoutCompleteds());
     }
 }
