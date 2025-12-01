@@ -5,6 +5,13 @@ signal [imuxing](https://en.wikipedia.org/wiki/Inverse_multiplexer). It also
 incorporates proper signal chain resource management and layout jank reduction
 via DOM mutation batching.
 
+## Demos
+
+The `examples/` directory contains implementations of [TodoMVC](http://todomvc.com/)
+and [js-framework-benchmark](https://github.com/krausest/js-framework-benchmark).
+(Though the latter is more for macrobenchmarking purposes, it also doubles as
+another trivial demo app.)
+
 ## Intro to Signals
 
 TODO: Sources, sinks and intermediate nodes
