@@ -767,6 +767,8 @@ object properties. And so on and so forth
       *O(1)* indexing (like a doubly linked list would).
 * Batch DOM updates to reduce UI jank from layout storms.
 
-## TODO
+## Known Issues
 
-* Prevent [glitches](https://en.wikipedia.org/wiki/Reactive_programming#Glitches) (due to diamonds and also e.g. `SliceVecnal`)?
+Since updates are propagated via recursive method calls instead of a careful
+explicit graph traversal, signal graphs are susceptible to [glitches](https://en.wikipedia.org/wiki/Reactive_programming#Glitches)
+(wrt. diamonds and also e.g. `SliceVecnal`).
