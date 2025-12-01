@@ -16,6 +16,7 @@
     "build": "tsc",
     "test": "tsc && node --experimental-vm-modules node_modules/.bin/jest --coverage",
     "benchmark": "tsc && node --allow-natives-syntax benchmarks/*",
-    "docs": "npx typedoc --entryPointStrategy Expand lib"
+    "build-docs": "npx typedoc --entryPointStrategy Expand lib"
   }
 }
+
