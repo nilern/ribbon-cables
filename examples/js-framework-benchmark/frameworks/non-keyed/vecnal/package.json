@@ -1,12 +1,17 @@
 {
+  "private": true,
+  
   "name": "js-framework-benchmark-vecnal",
   "version": "0.1.0",
   "description": "Vecnal demo",
+  
   "main": "index.js",
+  
   "js-framework-benchmark": {
     "frameworkVersion": "0.1.0",
     "frameworkHomeURL": ""
   },
+  
   "scripts": {
     "dev": "exit 0",
     "build-prod": "./build-prod.sh"

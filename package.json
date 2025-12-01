@@ -1,6 +1,11 @@
 {
-  "private": true,
+  "name": "ribbon-cables",
+  "version": "0.1.0",
+  "description": "FRP Model-View library experiment",
+  "licence": "LGPL-3.0-or-later",
+  
   "type": "module",
+  
   "devDependencies": {
     "@fast-check/jest": "^2.1.1",
     "@types/jest": "^30.0.0",
@@ -12,6 +17,7 @@
     "ts-node": "^10.9.2",
     "typedoc": "^0.28.13"
   },
+  
   "scripts": {
     "build": "tsc",
     "test": "tsc && node --experimental-vm-modules node_modules/.bin/jest --coverage",
