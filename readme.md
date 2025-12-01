@@ -683,6 +683,44 @@ On the other hand, "lies, damned lies and benchmarks". Probably
 js-framework-benchmark is not fully representative of real-world apps. Surely
 Facebook would gladly tell you as much, waving their bloated, monstrous frontends.
 
+## Three Sibling Paradigms Conjure Up a Fourth
+
+The mainstream paradigms of procedural programming (advanced imperative, from
+Algol), functional programming (from Lisp) and object-oriented programming (from
+Simula and Smalltalk) are often pitted against each other, especially in this
+highly politicized day and age. But often they instead support and bleed into
+one another. Not only does any "modern" language design like JavaScript (1995)
+have at least basic support for all of them, but the classics already nodded to
+other paradigms: Algol, Pascal and C have limited support for first-class
+functions, old-school Lisp is inundated with mutability and Smalltalk implemented
+loops and even conditionals with Blocks (= closures) while claiming that the evils
+of mutability could be contained by mere encapsulation inside objects.
+
+Reactive programming is a rather minor paradigm, fundamentally imperative but
+often the data flow is pushed towards referential transparency by building it on
+pure functions as we do here (**F**unctional **R**eactive **P**rogramming).
+
+In turn concrete signal nodes neatly fit the OO paradigm generally and the
+Observer pattern specifically. Both encapsulation and inheritance immediately
+seemed obviously necessary. OO aficionados may fight me on the use of a
+`protected` member variable instead of methods for the `SubscribeableSignal`
+`subscribers`. For an extra dose of [Gamma](https://en.wikipedia.org/wiki/Design_Patterns)
+observe how `SubscribingSubscribeableSignal` utilizes the Template Method pattern
+to propagate the memory and update leak prevention.
+
+Going deeper, `FilteredVecnal` and `SortedVecnal` index mapping updates contain
+raw imperative loops that look more like number crunching than modern web app
+code. `SortedVecnal` also contains variations of classic imperative merge sort and
+binary search algorithms.
+
+The functional classic `Vecnal.prototype.reduce` is heavily used internally for
+efficient vecnal element iteration. With closures that do imperative updates on
+object properties. And so on and so forth
+
+> The Wheel of Time weaves the Pattern of the Ages, and lives are the threads it
+> weaves. No one can tell how the thread of his own life will be woven into the
+> Pattern, or how the thread of a people will be woven.
+
 ## Goals
 
 * Dev UX
@@ -728,7 +766,6 @@ Facebook would gladly tell you as much, waving their bloated, monstrous frontend
       for *O(1)* insertion and deletion in the middle without sacrificing
       *O(1)* indexing (like a doubly linked list would).
 * Batch DOM updates to reduce UI jank from layout storms.
-
 
 ## TODO
 
