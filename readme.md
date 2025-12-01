@@ -401,9 +401,6 @@ receiving any edit.
 
 TODO: Mistletoe(?)
 
-TODO: disappointing perf (consider `Array.prototype.splice`, index mapping etc.),
-not worth the complexity
-
 ## Reactive DOM Nodes
 
 RibbonCables DOM nodes are created via a `NodeFactory`. A Factory is needed to
