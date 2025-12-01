@@ -732,3 +732,9 @@ object properties. And so on and so forth
 Since updates are propagated via recursive method calls instead of a careful
 explicit graph traversal, signal graphs are susceptible to [glitches](https://en.wikipedia.org/wiki/Reactive_programming#Glitches)
 (wrt. diamonds and also e.g. `SliceVecnal`).
+
+## API Docs
+
+API docs may be generated with `npm run build-docs`. They are unnecessarily
+complete for such an experimental project. I like API docs, even if I am just
+writing them for myself.
