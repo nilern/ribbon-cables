@@ -15,8 +15,6 @@ another trivial demo app.)
 
 ## Intro to Signals
 
-TODO: Sources, sinks and intermediate nodes
-
 ```typescript
 import type {Reset} from "lib/prelude.js";
 import {eq} from "lib/prelude.js";
@@ -75,6 +73,11 @@ cascading:
 ```typescript
 counter.reset(counter.ref()); // Does not print anything or inform `countStr`.
 ```
+
+I call signals that do not depend on other signals **source signals** (e.g.
+`sig.source` and `sig.stable`) and signals that do
+**intermediate signal( node)s**. I call non-signal subscribers **(update) sinks**
+as they are presumably the final destinations of those update streams.
 
 ## Fused Sequence Signal Protocol
 
