@@ -3,7 +3,8 @@
 RibbonCables is a Typescript FRP Model-View library experiment primarily around
 signal [imuxing](https://en.wikipedia.org/wiki/Inverse_multiplexer). It also
 incorporates proper signal chain resource management and layout jank reduction
-via DOM mutation batching.
+via DOM mutation batching. I already did a [less serious take](https://github.com/nilern/mistletoe)
+on the same ideas years ago in ClojureScript.
 
 ## Demos
 
@@ -398,8 +399,6 @@ at length above the API would seem rather incomplete without both of those
 conversions. Compared to `imux` (and most `Vecnal` operations), multiplexing is
 almost trivial; just re-collect all the `Vecnal` elements into a new sequence on
 receiving any edit.
-
-TODO: Mistletoe(?)
 
 ## Reactive DOM Nodes
 
